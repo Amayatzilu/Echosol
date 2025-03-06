@@ -27,7 +27,9 @@ YDL_OPTIONS = {
     'cookiefile': cookies_path,  # Use the manually exported cookies
 }
 
-FFMPEG_OPTIONS = {'options': '-vn'}
+FFMPEG_OPTIONS = {
+    'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+}
 
 song_queue = []  # Queue for storing songs
 
@@ -82,6 +84,11 @@ async def play_next(ctx):
     
     if song_queue:
         url = song_queue.pop(0)  # Get the next song URL
+
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(url, download=False)
+            audio_url = info['url']  # Extract the correct direct streamable audio URL
+
         vc = ctx.voice_client
         
         def after_play(error):
@@ -89,11 +96,10 @@ async def play_next(ctx):
                 print(f"Error playing audio: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS), after=after_play)
-        await ctx.send(f"▶️ Now playing: {url}")
+        vc.play(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), after=after_play)
+        await ctx.send(f"▶️ Now playing: {info.get('title', url)}")
     else:
         await ctx.send("✅ Queue is empty!")
-
 @bot.command()
 async def stop(ctx):
     """Stops music playback."""
