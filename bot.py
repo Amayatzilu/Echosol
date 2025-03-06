@@ -17,6 +17,18 @@ YDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': 'True'
 }
+
+# Load YouTube cookies from Railway environment
+cookies_path = "/app/cookies.txt"
+with open(cookies_path, "w") as f:
+    f.write(os.getenv("YOUTUBE_COOKIES", ""))
+
+YDL_OPTIONS = {
+    'format': 'bestaudio/best',
+    'noplaylist': 'True',
+    'cookiefile': cookies_path  # Pass the cookies file
+}
+
 FFMPEG_OPTIONS = {'options': '-vn'}
 
 song_queue = []  # Queue for storing songs
