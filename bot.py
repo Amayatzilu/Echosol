@@ -7,6 +7,13 @@ import asyncio
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
 
+# Enable intents
+intents = discord.Intents.default()
+intents.message_content = True 
+
+# Initialize the bot with intents
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 # Bot setup with command prefix
 intents = discord.Intents.default()
 intents.message_content = True
