@@ -29,6 +29,8 @@ if cookie_data:
 YDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': 'True',
+    'noplaylist': 'False',  # Allow downloading from playlists
+    'extract_flat': True,   # Extract playlist info without downloading all at once
     'cookiefile': cookies_path,  # Use the manually exported cookies
 }
 
@@ -61,12 +63,18 @@ async def leave(ctx):
 
 @bot.command()
 async def play(ctx, url: str = None):
-    """Plays music from a YouTube URL or the next song in queue."""
+    """Plays music from a YouTube URL or a playlist."""
     if url:
         with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
             info = ydl.extract_info(url, download=False)
-            song_queue.append(info)
-            await ctx.send(f"🎵 Added to queue: **{info['title']}**")
+            
+            if 'entries' in info:  # Check if it's a playlist
+                for entry in info['entries']:
+                    song_queue.append(entry['url'])
+                await ctx.send(f"🎵 Added **{len(info['entries'])}** songs from playlist to queue!")
+            else:
+                song_queue.append(info['url'])
+                await ctx.send(f"🎵 Added to queue: **{info['title']}**")
 
         if not ctx.voice_client or not ctx.voice_client.is_playing():
             await play_next(ctx)
