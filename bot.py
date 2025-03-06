@@ -64,33 +64,34 @@ async def leave(ctx):
 @bot.command()
 async def play(ctx, url: str = None):
     """Plays music from a YouTube URL or a playlist."""
-    if url:
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            info = ydl.extract_info(url, download=False)
-            
-            if 'entries' in info:  # Check if it's a playlist
-                for entry in info['entries']:
-                    song_queue.append(entry['url'])
-                await ctx.send(f"🎵 Added **{len(info['entries'])}** songs from playlist to queue!")
-            else:
-                song_queue.append(info['url'])
-                await ctx.send(f"🎵 Added to queue: **{info['title']}**")
-
-        if not ctx.voice_client or not ctx.voice_client.is_playing():
-            await play_next(ctx)
-    else:
+    if not url:
         await ctx.send("❌ Please provide a YouTube link!")
+        return
+    
+    with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+        if 'entries' in info:  # Check if it's a playlist
+            for entry in info['entries']:
+                song_queue.append(entry['url'])  # Append each song URL to queue
+            await ctx.send(f"🎵 Added **{len(info['entries'])}** songs from playlist to queue!")
+        else:
+            song_queue.append(info['url'])
+            await ctx.send(f"🎵 Added to queue: **{info['title']}**")
+
+    if not ctx.voice_client or not ctx.voice_client.is_playing():
+        await play_next(ctx)
+
 
 async def play_next(ctx):
     """Plays the next song in the queue."""
     if song_queue:
-        info = song_queue.pop(0)
+        url = song_queue.pop(0)  # Get the next song URL
         vc = ctx.voice_client
-        URL = info['url']
 
-        vc.play(discord.FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), 
+        vc.play(discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
                 after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop))
-        await ctx.send(f"▶️ Now playing: **{info['title']}**")
+        await ctx.send(f"▶️ Now playing: **{url}**")
     else:
         await ctx.send("✅ Queue is empty!")
 
