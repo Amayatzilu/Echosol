@@ -13,12 +13,6 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Configure YouTube downloader settings
-YDL_OPTIONS = {
-    'format': 'bestaudio/best',
-    'noplaylist': 'True'
-}
-
-# Write cookies from Railway environment variable to a file
 cookies_path = "/app/cookies.txt"
 cookie_data = os.getenv("YOUTUBE_COOKIES", "")
 
@@ -28,7 +22,6 @@ if cookie_data:
 
 YDL_OPTIONS = {
     'format': 'bestaudio/best',
-    'noplaylist': 'True',
     'noplaylist': 'False',  # Allow downloading from playlists
     'extract_flat': True,   # Extract playlist info without downloading all at once
     'cookiefile': cookies_path,  # Use the manually exported cookies
@@ -82,16 +75,22 @@ async def play(ctx, url: str = None):
     if not ctx.voice_client or not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-
 async def play_next(ctx):
     """Plays the next song in the queue."""
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        return  # Prevent overlapping plays
+    
     if song_queue:
         url = song_queue.pop(0)  # Get the next song URL
         vc = ctx.voice_client
+        
+        def after_play(error):
+            if error:
+                print(f"Error playing audio: {error}")
+            asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
-                after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop))
-        await ctx.send(f"▶️ Now playing: **{url}**")
+        vc.play(discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS), after=after_play)
+        await ctx.send(f"▶️ Now playing: {url}")
     else:
         await ctx.send("✅ Queue is empty!")
 
@@ -108,7 +107,7 @@ async def stop(ctx):
 async def queue(ctx):
     """Displays the current queue."""
     if song_queue:
-        queue_list = '\n'.join([f"{i+1}. {song['title']}" for i, song in enumerate(song_queue)])
+        queue_list = '\n'.join([f"{i+1}. {song}" for i, song in enumerate(song_queue)])
         await ctx.send(f"📜 **Current Queue:**\n{queue_list}")
     else:
         await ctx.send("❌ The queue is empty.")
@@ -128,8 +127,8 @@ async def skip(ctx):
     """Skips the current song."""
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
-        await play_next(ctx)
         await ctx.send("⏭ Skipped the current song!")
+        await play_next(ctx)
     else:
         await ctx.send("❌ No song is playing to skip.")
 
