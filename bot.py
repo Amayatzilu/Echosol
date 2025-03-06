@@ -18,15 +18,18 @@ YDL_OPTIONS = {
     'noplaylist': 'True'
 }
 
-# Load YouTube cookies from Railway environment
+# Write cookies from Railway environment variable to a file
 cookies_path = "/app/cookies.txt"
-with open(cookies_path, "w") as f:
-    f.write(os.getenv("YOUTUBE_COOKIES", ""))
+cookie_data = os.getenv("YOUTUBE_COOKIES", "")
+
+if cookie_data:
+    with open(cookies_path, "w") as f:
+        f.write(cookie_data)
 
 YDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': 'True',
-    'cookiefile': cookies_path  # Pass the cookies file
+    'cookiefile': cookies_path,  # Use the manually exported cookies
 }
 
 FFMPEG_OPTIONS = {'options': '-vn'}
