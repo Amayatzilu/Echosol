@@ -27,7 +27,9 @@ YDL_OPTIONS = {
     'cookiefile': cookies_path,  # Use the manually exported cookies
 }
 
-FFMPEG_OPTIONS = {'options': '-vn'}
+FFMPEG_OPTIONS = {
+    'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+}
 
 song_queue = []  # Queue for storing songs
 playlists = {}  # Dictionary to store user playlists
@@ -124,21 +126,35 @@ async def play(ctx, url: str = None):
         await play_next(ctx)
 
 async def play_next(ctx):
-    """Plays the next song in the queue."""
+    """Plays the next song in the queue and refreshes expired URLs."""
     if ctx.voice_client and ctx.voice_client.is_playing():
         return  # Prevent overlapping plays
-    
+
     if song_queue:
         url = song_queue.pop(0)  # Get the next song URL
+
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            try:
+                info = ydl.extract_info(url, download=False)
+                audio_url = info['url']  # Extract the valid audio stream
+            except Exception as e:
+                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
+                return await play_next(ctx)
+
         vc = ctx.voice_client
-        
+
         def after_play(error):
             if error:
                 print(f"Error playing audio: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS), after=after_play)
-        await ctx.send(f"▶️ Now playing: {url}")
+        try:
+            vc.play(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), after=after_play)
+            await ctx.send(f"▶️ Now playing: {info.get('title', url)}")
+        except discord.errors.ClientException:
+            await ctx.send("⚠️ Failed to play audio. Retrying...")
+            song_queue.insert(0, url)  # Put the song back in queue for retry
+            await play_next(ctx)
     else:
         await ctx.send("✅ Queue is empty!")
 
