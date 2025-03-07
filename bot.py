@@ -25,10 +25,12 @@ YDL_OPTIONS = {
     'noplaylist': 'False',  # Allow downloading from playlists
     'extract_flat': True,   # Extract playlist info without downloading all at once
     'cookiefile': cookies_path,  # Use the manually exported cookies
-}
-
-FFMPEG_OPTIONS = {
-    'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+    'postprocessors': [{  # Ensure audio is extracted properly
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
+    'outtmpl': 'temp_audio.%(ext)s',  # Save temp file before playing
 }
 
 song_queue = []  # Queue for storing songs
@@ -149,7 +151,7 @@ async def play_next(ctx):
                 await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
                 return await play_next(ctx)
 
-        vc.play(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), after=after_play)
+        vc.play(discord.FFmpegPCMAudio("temp_audio.mp3", **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)  # Apply volume level
         await ctx.send(f"▶️ Now playing: {info.get('title', 'Unknown title')} at {int(volume_level * 100)}% volume")
     else:
