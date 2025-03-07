@@ -33,10 +33,21 @@ FFMPEG_OPTIONS = {
 
 song_queue = []  # Queue for storing songs
 playlists = {}  # Dictionary to store user playlists
+volume_level = 1.0  # Default volume level
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
+
+@bot.command()
+async def set_volume(ctx, volume: int):
+    """Sets the volume level (1-100)."""
+    global volume_level
+    if 1 <= volume <= 100:
+        volume_level = volume / 100.0  # Convert to a scale of 0.0 - 1.0
+        await ctx.send(f"🔊 Volume set to {volume}%")
+    else:
+        await ctx.send("❌ Volume must be between 1 and 100.")
 
 @bot.command()
 async def create_playlist(ctx, playlist_name: str):
@@ -104,57 +115,28 @@ async def leave(ctx):
     else:
         await ctx.send("❌ I'm not in a voice channel.")
 
-@bot.command()
-async def play(ctx, url: str = None):
-    """Plays music from a YouTube URL or a playlist."""
-    if not url:
-        await ctx.send("❌ Please provide a YouTube link!")
-        return
-    
-    with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-        info = ydl.extract_info(url, download=False)
-
-        if 'entries' in info:  # Check if it's a playlist
-            for entry in info['entries']:
-                song_queue.append(entry['url'])  # Append each song URL to queue
-            await ctx.send(f"🎵 Added **{len(info['entries'])}** songs from playlist to queue!")
-        else:
-            song_queue.append(info['url'])
-            await ctx.send(f"🎵 Added to queue: **{info['title']}**")
-
-    if not ctx.voice_client or not ctx.voice_client.is_playing():
-        await play_next(ctx)
-
 async def play_next(ctx):
     """Plays the next song in the queue and refreshes expired URLs."""
+    global volume_level
     if ctx.voice_client and ctx.voice_client.is_playing():
         return  # Prevent overlapping plays
-
+    
     if song_queue:
         url = song_queue.pop(0)  # Get the next song URL
-
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            try:
-                info = ydl.extract_info(url, download=False)
-                audio_url = info['url']  # Extract the valid audio stream
-            except Exception as e:
-                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-                return await play_next(ctx)
-
         vc = ctx.voice_client
-
+        
         def after_play(error):
             if error:
                 print(f"Error playing audio: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        try:
-            vc.play(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), after=after_play)
-            await ctx.send(f"▶️ Now playing: {info.get('title', url)}")
-        except discord.errors.ClientException:
-            await ctx.send("⚠️ Failed to play audio. Retrying...")
-            song_queue.insert(0, url)  # Put the song back in queue for retry
-            await play_next(ctx)
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(url, download=False)
+            audio_url = info['url']
+
+        vc.play(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), after=after_play)
+        vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)  # Apply volume level
+        await ctx.send(f"▶️ Now playing: {info.get('title', url)} at {int(volume_level * 100)}% volume")
     else:
         await ctx.send("✅ Queue is empty!")
 
