@@ -27,15 +27,61 @@ YDL_OPTIONS = {
     'cookiefile': cookies_path,  # Use the manually exported cookies
 }
 
-FFMPEG_OPTIONS = {
-    'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
-}
+FFMPEG_OPTIONS = {'options': '-vn'}
 
 song_queue = []  # Queue for storing songs
+playlists = {}  # Dictionary to store user playlists
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
+
+@bot.command()
+async def create_playlist(ctx, playlist_name: str):
+    """Creates a new playlist."""
+    if playlist_name in playlists:
+        await ctx.send(f"❌ Playlist '{playlist_name}' already exists.")
+    else:
+        playlists[playlist_name] = []
+        await ctx.send(f"✅ Created playlist '{playlist_name}'!")
+
+@bot.command()
+async def add_to_playlist(ctx, playlist_name: str, url: str):
+    """Adds a song to a playlist."""
+    if playlist_name not in playlists:
+        await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
+    else:
+        playlists[playlist_name].append(url)
+        await ctx.send(f"🎵 Added song to playlist '{playlist_name}'!")
+
+@bot.command()
+async def show_playlist(ctx, playlist_name: str):
+    """Displays songs in a playlist."""
+    if playlist_name not in playlists or not playlists[playlist_name]:
+        await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
+    else:
+        playlist_songs = '\n'.join([f"{i+1}. {song}" for i, song in enumerate(playlists[playlist_name])])
+        await ctx.send(f"📜 **Playlist '{playlist_name}':**\n{playlist_songs}")
+
+@bot.command()
+async def play_playlist(ctx, playlist_name: str):
+    """Plays all songs from a playlist."""
+    if playlist_name not in playlists or not playlists[playlist_name]:
+        await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
+    else:
+        song_queue.extend(playlists[playlist_name])
+        await ctx.send(f"▶️ Added playlist '{playlist_name}' to queue!")
+        if not ctx.voice_client or not ctx.voice_client.is_playing():
+            await play_next(ctx)
+
+@bot.command()
+async def delete_playlist(ctx, playlist_name: str):
+    """Deletes a playlist."""
+    if playlist_name in playlists:
+        del playlists[playlist_name]
+        await ctx.send(f"🗑 Playlist '{playlist_name}' deleted.")
+    else:
+        await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
 
 @bot.command()
 async def join(ctx):
@@ -78,66 +124,23 @@ async def play(ctx, url: str = None):
         await play_next(ctx)
 
 async def play_next(ctx):
-    """Plays the next song in the queue and refreshes expired URLs."""
+    """Plays the next song in the queue."""
     if ctx.voice_client and ctx.voice_client.is_playing():
         return  # Prevent overlapping plays
-
+    
     if song_queue:
         url = song_queue.pop(0)  # Get the next song URL
-
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            try:
-                info = ydl.extract_info(url, download=False)
-                audio_url = info['url']  # Extract the valid audio stream
-            except Exception as e:
-                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-                return await play_next(ctx)
-
         vc = ctx.voice_client
-
+        
         def after_play(error):
             if error:
                 print(f"Error playing audio: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        try:
-            vc.play(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), after=after_play)
-            await ctx.send(f"▶️ Now playing: {info.get('title', url)}")
-        except discord.errors.ClientException:
-            await ctx.send("⚠️ Failed to play audio. Retrying...")
-            song_queue.insert(0, url)  # Put the song back in queue for retry
-            await play_next(ctx)
+        vc.play(discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS), after=after_play)
+        await ctx.send(f"▶️ Now playing: {url}")
     else:
         await ctx.send("✅ Queue is empty!")
-
-@bot.command()
-async def queue(ctx):
-    """Displays the current queue."""
-    if song_queue:
-        queue_list = '\n'.join([f"{i+1}. {song}" for i, song in enumerate(song_queue)])
-        await ctx.send(f"📜 **Current Queue:**\n{queue_list}")
-    else:
-        await ctx.send("❌ The queue is empty.")
-
-@bot.command()
-async def shuffle(ctx):
-    """Shuffles the queue."""
-    import random
-    if len(song_queue) > 1:
-        random.shuffle(song_queue)
-        await ctx.send("🔀 The queue has been shuffled!")
-    else:
-        await ctx.send("❌ Not enough songs in the queue to shuffle.")
-
-@bot.command()
-async def skip(ctx):
-    """Skips the current song."""
-    if ctx.voice_client and ctx.voice_client.is_playing():
-        ctx.voice_client.stop()
-        await ctx.send("⏭ Skipped the current song!")
-        await play_next(ctx)
-    else:
-        await ctx.send("❌ No song is playing to skip.")
 
 # Run the bot
 TOKEN = os.getenv("TOKEN")  # Reads token from environment variables
