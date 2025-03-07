@@ -118,25 +118,40 @@ async def leave(ctx):
 async def play_next(ctx):
     """Plays the next song in the queue and refreshes expired URLs."""
     global volume_level
+
     if ctx.voice_client and ctx.voice_client.is_playing():
         return  # Prevent overlapping plays
-    
+
     if song_queue:
         url = song_queue.pop(0)  # Get the next song URL
         vc = ctx.voice_client
-        
+
         def after_play(error):
             if error:
                 print(f"Error playing audio: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
         with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            info = ydl.extract_info(url, download=False)
-            audio_url = info['url']
+            try:
+                info = ydl.extract_info(url, download=False)
+                
+                # If it's a playlist, get the first entry
+                if 'entries' in info:
+                    info = info['entries'][0]
+                
+                # Ensure we get the correct direct URL
+                audio_url = info.get('url')
+
+                if not audio_url:
+                    raise KeyError("No direct URL found for the video.")
+
+            except Exception as e:
+                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
+                return await play_next(ctx)
 
         vc.play(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)  # Apply volume level
-        await ctx.send(f"▶️ Now playing: {info.get('title', url)} at {int(volume_level * 100)}% volume")
+        await ctx.send(f"▶️ Now playing: {info.get('title', 'Unknown title')} at {int(volume_level * 100)}% volume")
     else:
         await ctx.send("✅ Queue is empty!")
 
