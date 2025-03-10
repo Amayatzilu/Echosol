@@ -44,6 +44,7 @@ YDL_OPTIONS = {
 FFMPEG_OPTIONS = {
     'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
+
 song_queue = []  # Queue for storing songs
 playlists = {}  # Dictionary to store user playlists
 volume_level = 1.0  # Default volume level
