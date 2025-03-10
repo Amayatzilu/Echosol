@@ -22,14 +22,14 @@ if cookie_data:
 
 YDL_OPTIONS = {
     'format': 'bestaudio/best',
-    'noplaylist': 'False',  # Allow downloading from playlists
-    'cookiefile': cookies_path,  # Use the manually exported cookies
-    'postprocessors': [{  # Ensure audio is extracted properly
+    'noplaylist': 'False',
+    'cookiefile': cookies_path,
+    'postprocessors': [{  # Convert to MP3
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
-    'outtmpl': 'temp_audio',  # Ensure file saves with a fixed name
+    'outtmpl': '%(title)s.%(ext)s',  # Save with actual title as filename
     'noprogress': True,
     'nocheckcertificate': True,
     'geo_bypass': True,
@@ -165,25 +165,24 @@ async def play_next(ctx):
                 print(f"Error playing audio: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            try:
-                info = ydl.extract_info(url, download=False)
-                
-                # If it's a playlist, get the first entry
-                if 'entries' in info:
-                    info = info['entries'][0]
-                
-                # Ensure we get the correct direct URL
-                audio_url = info.get('url')
+       with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+    try:
+        info = ydl.extract_info(url, download=True)  # Force download
 
-                if not audio_url:
-                    raise KeyError("No direct URL found for the video.")
+        if 'entries' in info:  # If it's a playlist, get the first entry
+            info = info['entries'][0]
 
-            except Exception as e:
-                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-                return await play_next(ctx)
+        # Get the actual filename
+        audio_filename = ydl.prepare_filename(info).replace(".webm", ".mp3").replace(".m4a", ".mp3")
 
-        vc.play(discord.FFmpegPCMAudio("temp_audio.mp3", **FFMPEG_OPTIONS), after=after_play)
+        if not os.path.exists(audio_filename):
+            raise FileNotFoundError(f"Downloaded audio file '{audio_filename}' not found.")
+
+    except Exception as e:
+        await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
+        return await play_next(ctx)
+
+vc.play(discord.FFmpegPCMAudio(audio_filename, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)  # Apply volume level
         await ctx.send(f"▶️ Now playing: {info.get('title', 'Unknown title')} at {int(volume_level * 100)}% volume")
     else:
