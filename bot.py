@@ -185,9 +185,9 @@ with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
 
 vc.play(discord.FFmpegPCMAudio(audio_filename, **FFMPEG_OPTIONS), after=after_play)        
 vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)  # Apply volume level
-await ctx.send(f"▶️ Now playing: {info.get('title', 'Unknown title')} at {int(volume_level * 100)}% volume")
+	await ctx.send(f"▶️ Now playing: {info.get('title', 'Unknown title')} at {int(volume_level * 100)}% volume")
 else:
-await ctx.send("✅ Queue is empty!")
+	await ctx.send("✅ Queue is empty!")
 # Run the bot
 TOKEN = os.getenv("TOKEN")  # Reads token from environment variables
 bot.run(TOKEN)
