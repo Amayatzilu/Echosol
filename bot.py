@@ -183,7 +183,8 @@ with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
         await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
         return await play_next(ctx)
 
-vc.play(discord.FFmpegPCMAudio(audio_filename, **FFMPEG_OPTIONS), after=after_play)        vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)  # Apply volume level
+vc.play(discord.FFmpegPCMAudio(audio_filename, **FFMPEG_OPTIONS), after=after_play)        
+vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)  # Apply volume level
         await ctx.send(f"▶️ Now playing: {info.get('title', 'Unknown title')} at {int(volume_level * 100)}% volume")
     else:
         await ctx.send("✅ Queue is empty!")
