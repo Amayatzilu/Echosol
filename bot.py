@@ -25,22 +25,8 @@ YDL_OPTIONS = {
     'noplaylist': 'False',  # Allow downloading from playlists
     'extract_flat': True,   # Extract playlist info without downloading all at once
     'cookiefile': cookies_path,  # Use the manually exported cookies
-    'postprocessors': [{  # Ensure audio is extracted properly
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
-    'outtmpl': 'temp_audio.%(ext)s',  # Save temp file before playing
-    'noprogress': True,  # Prevent excessive output
-    'nocheckcertificate': True,  # Ignore SSL certificate issues
-    'geo_bypass': True,  # Bypass geo-restrictions
-    'quiet': True,  # Reduce log output
-    'source_address': '0.0.0.0',  # Prevents YouTube blocking IPs
-    'http_headers': {  # Fake a real browser request
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-    },
 }
+
 FFMPEG_OPTIONS = {
     'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
