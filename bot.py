@@ -151,14 +151,11 @@ async def play(ctx, url: str = None):
         await play_next(ctx)
 
 async def play_next(ctx):
-    """Plays the next song in the queue and refreshes expired URLs."""
-    global volume_level
-
     if ctx.voice_client and ctx.voice_client.is_playing():
-        return  # Prevent overlapping plays
+        return
 
     if song_queue:
-        url = song_queue.pop(0)  # Get the next song URL
+        url = song_queue.pop(0)
         vc = ctx.voice_client
 
         def after_play(error):
@@ -166,25 +163,22 @@ async def play_next(ctx):
                 print(f"Error playing audio: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-    try:
-        info = ydl.extract_info(url, download=True)  # Force download
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            try:
+                info = ydl.extract_info(url, download=True)
+                if 'entries' in info:
+                    info = info['entries'][0]
+                audio_filename = ydl.prepare_filename(info).replace(".webm", ".mp3").replace(".m4a", ".mp3")
 
-        if 'entries' in info:  # If it's a playlist, get the first entry
-            info = info['entries'][0]
+                if not os.path.exists(audio_filename):
+                    raise FileNotFoundError(f"Downloaded audio file '{audio_filename}' not found.")
 
-        # Get the actual filename
-        audio_filename = ydl.prepare_filename(info).replace(".webm", ".mp3").replace(".m4a", ".mp3")
-
-        if not os.path.exists(audio_filename):
-            raise FileNotFoundError(f"Downloaded audio file '{audio_filename}' not found.")
-
-    except Exception as e:
-        await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-        return await play_next(ctx)
+            except Exception as e:
+                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
+                return await play_next(ctx)
 
         vc.play(discord.FFmpegPCMAudio(audio_filename, **FFMPEG_OPTIONS), after=after_play)
-        vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)  # Apply volume level
+        vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
         await ctx.send(f"▶️ Now playing: {info.get('title', 'Unknown title')} at {int(volume_level * 100)}% volume")
     else:
         await ctx.send("✅ Queue is empty!")
