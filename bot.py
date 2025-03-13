@@ -143,25 +143,48 @@ async def set_volume(ctx, volume: int):
     else:
         await ctx.send("❌ Volume must be between 1 and 100.")
 
+
+@bot.command()
+async def list_songs(ctx):
+    """Lists available uploaded songs with numbered IDs."""
+    global uploaded_files
+    uploaded_files = [f for f in os.listdir(MUSIC_FOLDER) if f.endswith(('.mp3', '.wav'))]
+    if uploaded_files:
+        song_list = '\n'.join([f"{i+1}. {song}" for i, song in enumerate(uploaded_files)])
+        await ctx.send(f"🎵 **Available Songs:**\n```{song_list}```\nUse `!play_number <number>` to play a song.")
+    else:
+        await ctx.send("❌ No songs found in the music folder!")
+
+@bot.command()
+async def play_number(ctx, number: int):
+    """Plays an uploaded song using its number from `!list_songs`."""
+    global uploaded_files
+    if 1 <= number <= len(uploaded_files):
+        song_name = uploaded_files[number - 1]
+        song_path = os.path.join(MUSIC_FOLDER, song_name)
+    
+        if ctx.voice_client is None:
+            await ctx.invoke(join)
+
+        vc = ctx.voice_client
+        vc.play(discord.FFmpegPCMAudio(song_path, **FFMPEG_OPTIONS), after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop))
+        vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
+        await ctx.send(f"▶️ Now playing: **{song_name}**")
+    else:
+        await ctx.send("❌ Invalid song number. Use `!list_songs` to see available songs.")
+
 @bot.event
 async def on_message(message):
-    """Handles user file uploads."""
+    """Handles file uploads from users and updates the song list."""
+    global uploaded_files
     if message.attachments:
         for attachment in message.attachments:
             if attachment.filename.endswith(('.mp3', '.wav')):
                 file_path = os.path.join(MUSIC_FOLDER, attachment.filename)
                 await attachment.save(file_path)
-                await message.channel.send(f"🎵 File received: **{attachment.filename}**. Use `!play {attachment.filename}` to listen.")
+                uploaded_files.append(attachment.filename)
+                await message.channel.send(f"🎵 File received: **{attachment.filename}**. Use `!list_songs` to see available songs.")
     await bot.process_commands(message)
-
-@bot.command()
-async def list_songs(ctx):
-    """Lists available songs in the music folder."""
-    songs = [f for f in os.listdir(MUSIC_FOLDER) if f.endswith(('.mp3', '.wav'))]
-    if songs:
-        await ctx.send(f"🎵 **Available Songs:**\n```{chr(10).join(songs)}```")
-    else:
-        await ctx.send("❌ No songs found in the music folder!")
 
 @bot.command()
 async def stop(ctx):
