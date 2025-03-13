@@ -148,7 +148,7 @@ async def volume(ctx, volume: int):
 
 
 @bot.command()
-async def list_songs(ctx):
+async def listsongs(ctx):
     """Lists available uploaded songs with numbered IDs."""
     global uploaded_files
     uploaded_files = [f for f in os.listdir(MUSIC_FOLDER) if f.endswith(('.mp3', '.wav'))]
@@ -159,7 +159,7 @@ async def list_songs(ctx):
         await ctx.send("❌ No songs found in the music folder!")
 
 @bot.command()
-async def play_number(ctx, number: int):
+async def playnumber(ctx, number: int):
     """Plays an uploaded song using its number from `!list_songs`."""
     global uploaded_files
     if 1 <= number <= len(uploaded_files):
@@ -199,7 +199,7 @@ async def stop(ctx):
         await ctx.send("❌ No music is currently playing.")
 
 @bot.command()
-async def create_playlist(ctx, playlist_name: str):
+async def cp(ctx, playlist_name: str):
     """Creates a new playlist."""
     if playlist_name in playlists:
         await ctx.send(f"❌ Playlist '{playlist_name}' already exists.")
@@ -208,7 +208,7 @@ async def create_playlist(ctx, playlist_name: str):
         await ctx.send(f"✅ Created playlist '{playlist_name}'!")
 
 @bot.command()
-async def add_to_playlist(ctx, playlist_name: str, url: str):
+async def atp(ctx, playlist_name: str, url: str):
     """Adds a song to a playlist."""
     if playlist_name not in playlists:
         await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
@@ -217,7 +217,7 @@ async def add_to_playlist(ctx, playlist_name: str, url: str):
         await ctx.send(f"🎵 Added song to playlist '{playlist_name}'!")
 
 @bot.command()
-async def show_playlist(ctx, playlist_name: str):
+async def sp(ctx, playlist_name: str):
     """Displays songs in a playlist."""
     if playlist_name not in playlists or not playlists[playlist_name]:
         await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
@@ -226,7 +226,7 @@ async def show_playlist(ctx, playlist_name: str):
         await ctx.send(f"📜 **Playlist '{playlist_name}':**\n{playlist_songs}")
 
 @bot.command()
-async def play_playlist(ctx, playlist_name: str):
+async def playlist(ctx, playlist_name: str):
     """Plays all songs from a playlist."""
     if playlist_name not in playlists or not playlists[playlist_name]:
         await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
@@ -237,7 +237,7 @@ async def play_playlist(ctx, playlist_name: str):
             await play_next(ctx)
 
 @bot.command()
-async def delete_playlist(ctx, playlist_name: str):
+async def dp(ctx, playlist_name: str):
     """Deletes a playlist."""
     if playlist_name in playlists:
         del playlists[playlist_name]
