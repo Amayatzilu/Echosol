@@ -49,9 +49,12 @@ FFMPEG_OPTIONS = {
 song_queue = []
 playlists = {}
 volume_level = 1.0  # Default volume level
+uploaded_files = []  # List to store uploaded files
 
 @bot.event
 async def on_ready():
+    global uploaded_files
+    uploaded_files = [f for f in os.listdir(MUSIC_FOLDER) if f.endswith(('.mp3', '.wav'))]
     print(f'Logged in as {bot.user}')
 
 @bot.command()
@@ -132,7 +135,7 @@ async def skip(ctx):
         await ctx.send("⏭ Skipped to the next song!")
 
 @bot.command()
-async def set_volume(ctx, volume: int):
+async def volume(ctx, volume: int):
     """Sets the bot's volume."""
     global volume_level
     if 1 <= volume <= 100:
