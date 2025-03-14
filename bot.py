@@ -195,6 +195,13 @@ async def playnumber(ctx, *numbers):
                 await ctx.send(f"❌ Invalid song number: {num}. Use `!listsongs` to see available songs.")
         except ValueError:
             await ctx.send(f"❌ Invalid input: {num}. Use numbers separated by spaces or commas.")
+
+    if not ctx.voice_client:
+        if ctx.author.voice:
+            await ctx.author.voice.channel.connect()
+        else:
+            await ctx.send("❌ You need to be in a voice channel to play music!")
+            return
     
     if added_songs:
         await ctx.send(f"🎵 Added to queue: {', '.join(added_songs)}")
