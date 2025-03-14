@@ -82,6 +82,13 @@ async def play(ctx, url: str = None):
     if not url:
         await ctx.send("❌ Please provide a YouTube link!")
         return
+
+    if not ctx.voice_client:
+        if ctx.author.voice:
+            await ctx.author.voice.channel.connect()
+        else:
+            await ctx.send("❌ You need to be in a voice channel to play music!")
+            return
     
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
         info = ydl.extract_info(url, download=False)
