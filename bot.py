@@ -181,19 +181,27 @@ async def listsongs(ctx):
         await ctx.send("❌ No songs found in the music folder!")
 
 @bot.command()
-async def playnumber(ctx, number: int):
-    """Plays an uploaded song using its number from `!list_songs`."""
-    if 1 <= number <= len(uploaded_files):
-        song_name = uploaded_files[number - 1]
-        song_path = os.path.join(MUSIC_FOLDER, song_name)
-        song_queue.append(song_path)
+async def playnumber(ctx, *numbers):
+    """Plays one or multiple uploaded songs using their numbers."""
+    added_songs = []
+    for num in numbers:
+        try:
+            num = int(num.strip(','))  # Remove commas and convert to integer
+            if 1 <= num <= len(uploaded_files):
+                song_path = os.path.join(MUSIC_FOLDER, uploaded_files[num - 1])
+                song_queue.append(song_path)
+                added_songs.append(uploaded_files[num - 1])
+            else:
+                await ctx.send(f"❌ Invalid song number: {num}. Use `!listsongs` to see available songs.")
+        except ValueError:
+            await ctx.send(f"❌ Invalid input: {num}. Use numbers separated by spaces or commas.")
     
-        if ctx.voice_client is None or not ctx.voice_client.is_playing():
-            await play_next(ctx)
-        else:
-            await ctx.send(f"🎵 Added to queue: **{song_name}**")
-    else:
-        await ctx.send("❌ Invalid song number. Use `!listsongs` to see available songs.")
+    if added_songs:
+        await ctx.send(f"🎵 Added to queue: {', '.join(added_songs)}")
+    
+    # Auto-play if nothing is currently playing
+    if not ctx.voice_client or not ctx.voice_client.is_playing():
+        await play_next(ctx)
 
 async def play_next(ctx):
     """Plays the next song in the queue."""
