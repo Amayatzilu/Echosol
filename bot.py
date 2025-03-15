@@ -321,6 +321,28 @@ async def deletep(ctx, playlist_name: str):
     else:
         await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
 
+@bot.command()
+async def cq(ctx):
+    """Clears the music queue."""
+    global song_queue
+    song_queue = []  # Empty the queue
+    await ctx.send("🗑️ Cleared the music queue!")
+
+@bot.command()
+async def clearuploads(ctx):
+    """Deletes all uploaded files to free space."""
+    global uploaded_files
+    file_count = 0
+
+    for filename in os.listdir(MUSIC_FOLDER):
+        file_path = os.path.join(MUSIC_FOLDER, filename)
+        if filename.endswith(('.mp3', '.wav')):  # Only delete audio files
+            os.remove(file_path)  # Delete the file
+            file_count += 1
+
+    uploaded_files = []  # Reset the uploaded files list
+    await ctx.send(f"🗑️ Deleted {file_count} uploaded files.")
+
 # Run the bot
 TOKEN = os.getenv("TOKEN")  # Reads token from environment variables
 bot.run(TOKEN)
