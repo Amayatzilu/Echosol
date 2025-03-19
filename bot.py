@@ -117,7 +117,7 @@ async def play_next(ctx):
 vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
 await ctx.send(f"▶️ Now playing: **{song_title}**")  # Displays the title instead of the URL
 
-      	with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+    with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
             try:
                 info = ydl.extract_info(original_url, download=False)
                 refreshed_url = info['url']  # Get fresh YouTube streaming link
