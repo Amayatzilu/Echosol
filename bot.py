@@ -24,6 +24,19 @@ if cookie_data:
     with open(cookies_path, "w") as f:
         f.write(cookie_data)
 
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
+
+@bot.command(aliases=["lost"])
+async def help(ctx):
+    """Custom help command that only shows main commands."""
+    help_text = "**🎵 Available Commands:**\n"
+    
+    for command in bot.commands:
+        if not command.hidden:  # Ignores hidden commands
+            help_text += f"**!{command.name}** - {command.help}\n"
+    
+    await ctx.send(help_text)
+
 # Configure YouTube downloader settings
 YDL_OPTIONS = {
     'format': 'bestaudio/best',
