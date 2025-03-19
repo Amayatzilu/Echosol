@@ -205,7 +205,7 @@ async def listsongs(ctx):
     else:
         await ctx.send("❌ No songs found in the music folder!")
 
-@bot.command()
+@bot.command(aliases=["number", "nummer", "n"])
 async def playnumber(ctx, *numbers):
     """Plays one or multiple uploaded songs using their numbers."""
     added_songs = []
@@ -275,7 +275,7 @@ async def on_message(message):
                 await message.channel.send(f"🎵 File received: **{attachment.filename}**. Use `!listsongs` to see available songs.")
     await bot.process_commands(message)
 
-@bot.command(aliases=["shutup", "nomore")
+@bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
     """Stops playback."""
     if ctx.voice_client and ctx.voice_client.is_playing():
@@ -284,7 +284,7 @@ async def stop(ctx):
     else:
         await ctx.send("❌ No music is currently playing.")
 
-@bot.command()
+@bot.command(aliases=["cp"])
 async def createplaylist(ctx, playlist_name: str):
     """Creates a new playlist."""
     if playlist_name in playlists:
@@ -293,7 +293,7 @@ async def createplaylist(ctx, playlist_name: str):
         playlists[playlist_name] = []
         await ctx.send(f"✅ Created playlist '{playlist_name}'!")
 
-@bot.command()
+@bot.command(aliases=["atp"])
 async def addtoplaylist(ctx, playlist_name: str, url: str):
     """Adds a song to a playlist."""
     if playlist_name not in playlists:
@@ -309,7 +309,7 @@ async def addtoplaylist(ctx, playlist_name: str, url: str):
     else:
         await ctx.send("❌ Invalid song number. Use `!list_songs` to see available songs.")
 
-@bot.command()
+@bot.command(aliases=["sp"])
 async def showplaylist(ctx, playlist_name: str):
     """Displays songs in a playlist."""
     if playlist_name not in playlists or not playlists[playlist_name]:
@@ -329,7 +329,7 @@ async def playlist(ctx, playlist_name: str):
         if not ctx.voice_client or not ctx.voice_client.is_playing():
             await play_next(ctx)
 
-@bot.command()
+@bot.command(aliases=["dp"])
 async def deleteplaylist(ctx, playlist_name: str):
     """Deletes a playlist."""
     if playlist_name in playlists:
@@ -338,14 +338,14 @@ async def deleteplaylist(ctx, playlist_name: str):
     else:
         await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
 
-@bot.command(aliases=["therestoomuchhere")
+@bot.command(aliases=["therestoomuchhere", "cq"])
 async def clearqueue(ctx):
     """Clears the music queue."""
     global song_queue
     song_queue = []  # Empty the queue
     await ctx.send("🗑️ Cleared the music queue!")
 
-@bot.command()
+@bot.command(aliases=["exterminate", "cu"])
 async def clearuploads(ctx):
     """Deletes all uploaded files to free space."""
     global uploaded_files
