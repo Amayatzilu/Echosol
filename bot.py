@@ -224,23 +224,30 @@ async def playnumber(ctx, *numbers):
         await play_next(ctx)
 
 async def play_next(ctx):
-    """Plays the next song in the queue."""
+    """Plays the next song in the queue, refreshing the YouTube URL if needed."""
     global volume_level
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
-    
+
     if song_queue:
-        song_url, song_title = song_queue.pop(0) 
+        song_url, song_title = song_queue.pop(0)  # Extract URL and title
+
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            try:
+                info = ydl.extract_info(song_url, download=False)  # Refresh the streaming URL
+                refreshed_url = info['url']
+            except Exception as e:
+                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
+                return await play_next(ctx)
+
         vc = ctx.voice_client
-        
+
         def after_play(error):
-            if error:
-                print(f"Error playing audio: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
-        
-        vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
+
+        vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
-        await ctx.send(f"▶️ Now playing: **{os.path.basename(song_path)}**")
+        await ctx.send(f"▶️ Now playing: **{song_title}**")
     else:
         await ctx.send("✅ Queue is empty!")
 
