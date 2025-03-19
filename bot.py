@@ -127,7 +127,7 @@ async def play_next(ctx):
         def after_play(error):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
+        vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
         await ctx.send(f"▶️ Now playing: **{song_title}**")
     else:
