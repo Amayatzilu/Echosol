@@ -112,7 +112,7 @@ async def play_next(ctx):
 
     if song_queue:
         song_data = song_queue.pop(0)
-        song_url, song_title = song_data  # Get original YouTube URL & Title
+        song_url, song_title = song_queue.pop(0)  # Extract URL and title
 
         with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
             try:
