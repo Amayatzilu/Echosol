@@ -95,10 +95,10 @@ async def play(ctx, url: str = None):
         
         if 'entries' in info:  # If a playlist is provided
             for entry in info['entries']:
-                song_queue.append(entry['url'])
+                song_queue.append((info['url'], info['title']))
             await ctx.send(f"🎵 Added {len(info['entries'])} songs from the playlist to queue!")
         else:
-            song_queue.append(info['url'])
+            song_queue.append((info['url'], info['title']))
             await ctx.send(f"🎵 Added to queue: **{info['title']}**")
     
     if not ctx.voice_client or not ctx.voice_client.is_playing():
@@ -112,7 +112,10 @@ async def play_next(ctx):
 
     if song_queue:
         song_data = song_queue.pop(0)
-        original_url, song_title = song_data  # Get original YouTube URL & Title
+        song_url, song_title = song_data  # Extract the URL and title separately
+
+vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
+await ctx.send(f"▶️ Now playing: **{song_title}**")  # Displays the title instead of the URL
 
         with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
             try:
