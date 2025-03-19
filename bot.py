@@ -26,9 +26,9 @@ if cookie_data:
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
 
-@bot.command(aliases=["lost"])
+@bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
-    """Custom help command that only shows main commands."""
+    """Displays all main commands."""
     help_text = "**🎵 Available Commands:**\n"
     
     for command in bot.commands:
@@ -70,7 +70,7 @@ async def on_ready():
     uploaded_files = [f for f in os.listdir(MUSIC_FOLDER) if f.endswith(('.mp3', '.wav'))]
     print(f'Logged in as {bot.user}')
 
-@bot.command()
+@bot.command(aliases=["playwithme", "connect", "verbinden"])
 async def join(ctx):
     """Joins a voice channel."""
     if ctx.author.voice:
@@ -80,7 +80,7 @@ async def join(ctx):
     else:
         await ctx.send("❌ You need to be in a voice channel first!")
 
-@bot.command()
+@bot.command(aliases=["goaway", "disconnect", "verlassen"])
 async def leave(ctx):
     """Leaves the voice channel."""
     if ctx.voice_client:
@@ -89,7 +89,7 @@ async def leave(ctx):
     else:
         await ctx.send("❌ I'm not in a voice channel.")
 
-@bot.command()
+@bot.command(aliases=["p", "gimmeatune", "spielen"])
 async def play(ctx, url: str = None):
     """Plays a song from YouTube or adds it to the queue."""
     if not url:
@@ -117,49 +117,48 @@ async def play(ctx, url: str = None):
     if not ctx.voice_client or not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-async def play_next(ctx):
-    """Plays the next song in the queue, refreshing the YouTube URL if needed."""
+aasync def play_next(ctx):
+    """Plays the next song in the queue, handling both YouTube and uploaded files."""
     global volume_level
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
 
     if song_queue:
-        song_url, song_title = song_queue.pop(0)  # Extract URL and title
+        song_data = song_queue.pop(0)  # Get the next song
 
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            try:
-                info = ydl.extract_info(song_url, download=False)  # Refresh the streaming URL
-                refreshed_url = info['url']
-            except Exception as e:
-                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-                return await play_next(ctx)
+        # Check if song_data is a tuple (YouTube song) or a string (uploaded file)
+        if isinstance(song_data, tuple):
+            song_url, song_title = song_data  # Extract URL & title
+        else:
+            song_url = song_data  # This is an uploaded file, no title available
+            song_title = os.path.basename(song_url)  # Use file name as title
 
         vc = ctx.voice_client
 
         def after_play(error):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
+        vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
-        await ctx.send(f"▶️ Now playing: **{song_title}**")
+        await ctx.send(f"▶️ Now playing: **{song_title}**")  # Display title or file name
     else:
         await ctx.send("✅ Queue is empty!")
 
-@bot.command()
+@bot.command(aliases=["hush"])
 async def pause(ctx):
     """Pauses the current song."""
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.pause()
         await ctx.send("⏸ Music paused!")
 
-@bot.command()
+@bot.command(aliases=["youmayspeak"])
 async def resume(ctx):
     """Resumes paused music."""
     if ctx.voice_client and ctx.voice_client.is_paused():
         ctx.voice_client.resume()
         await ctx.send("▶️ Resumed music!")
 
-@bot.command()
+@bot.command(aliases=["nextplease"])
 async def skip(ctx):
     """Skips the current song."""
     if ctx.voice_client and ctx.voice_client.is_playing():
@@ -167,7 +166,7 @@ async def skip(ctx):
         await play_next(ctx)
         await ctx.send("⏭ Skipped to the next song!")
 
-@bot.command()
+@bot.command(aliases=["turnitup", "tooloud", "v"])
 async def volume(ctx, volume: int):
     """Sets the bot's volume."""
     global volume_level
@@ -179,7 +178,7 @@ async def volume(ctx, volume: int):
     else:
         await ctx.send("❌ Volume must be between 1 and 100.")
 
-@bot.command()
+@bot.command(aliases=["whatsnext", "q"])
 async def queue(ctx):
     """Displays the current queue."""
     if song_queue:
@@ -188,7 +187,7 @@ async def queue(ctx):
     else:
         await ctx.send("❌ The queue is empty.")
 
-@bot.command()
+@bot.command(aliases=["ewwno"])
 async def remove(ctx, position: int):
     """Removes a song from the queue by its position."""
     if 1 <= position <= len(song_queue):
@@ -197,7 +196,7 @@ async def remove(ctx, position: int):
     else:
         await ctx.send("❌ Invalid queue position. Use `!queue` to see available songs.")
 
-@bot.command()
+@bot.command(aliases=["whatwegot"])
 async def listsongs(ctx):
     """Lists available uploaded songs with numbered IDs."""
     if uploaded_files:
@@ -237,30 +236,29 @@ async def playnumber(ctx, *numbers):
         await play_next(ctx)
 
 async def play_next(ctx):
-    """Plays the next song in the queue, refreshing the YouTube URL if needed."""
+    """Plays the next song in the queue, handling both YouTube and uploaded files."""
     global volume_level
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
 
     if song_queue:
-        song_url, song_title = song_queue.pop(0)  # Extract URL and title
+        song_data = song_queue.pop(0)  # Get the next song
 
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            try:
-                info = ydl.extract_info(song_url, download=False)  # Refresh the streaming URL
-                refreshed_url = info['url']
-            except Exception as e:
-                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-                return await play_next(ctx)
+        # Check if song_data is a tuple (YouTube song) or a string (uploaded file)
+        if isinstance(song_data, tuple):
+            song_url, song_title = song_data  # Extract URL & title
+        else:
+            song_url = song_data  # This is an uploaded file, no title available
+            song_title = os.path.basename(song_url)  # Use file name as title
 
         vc = ctx.voice_client
 
         def after_play(error):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
+        vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
-        await ctx.send(f"▶️ Now playing: **{song_title}**")
+        await ctx.send(f"▶️ Now playing: **{song_title}**")  # Display title or file name
     else:
         await ctx.send("✅ Queue is empty!")
 
@@ -277,7 +275,7 @@ async def on_message(message):
                 await message.channel.send(f"🎵 File received: **{attachment.filename}**. Use `!listsongs` to see available songs.")
     await bot.process_commands(message)
 
-@bot.command()
+@bot.command(aliases=["shutup", "nomore")
 async def stop(ctx):
     """Stops playback."""
     if ctx.voice_client and ctx.voice_client.is_playing():
@@ -287,7 +285,7 @@ async def stop(ctx):
         await ctx.send("❌ No music is currently playing.")
 
 @bot.command()
-async def createp(ctx, playlist_name: str):
+async def createplaylist(ctx, playlist_name: str):
     """Creates a new playlist."""
     if playlist_name in playlists:
         await ctx.send(f"❌ Playlist '{playlist_name}' already exists.")
@@ -296,7 +294,7 @@ async def createp(ctx, playlist_name: str):
         await ctx.send(f"✅ Created playlist '{playlist_name}'!")
 
 @bot.command()
-async def addtop(ctx, playlist_name: str, url: str):
+async def addtoplaylist(ctx, playlist_name: str, url: str):
     """Adds a song to a playlist."""
     if playlist_name not in playlists:
         await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
@@ -312,7 +310,7 @@ async def addtop(ctx, playlist_name: str, url: str):
         await ctx.send("❌ Invalid song number. Use `!list_songs` to see available songs.")
 
 @bot.command()
-async def showp(ctx, playlist_name: str):
+async def showplaylist(ctx, playlist_name: str):
     """Displays songs in a playlist."""
     if playlist_name not in playlists or not playlists[playlist_name]:
         await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
@@ -332,7 +330,7 @@ async def playlist(ctx, playlist_name: str):
             await play_next(ctx)
 
 @bot.command()
-async def deletep(ctx, playlist_name: str):
+async def deleteplaylist(ctx, playlist_name: str):
     """Deletes a playlist."""
     if playlist_name in playlists:
         del playlists[playlist_name]
@@ -340,8 +338,8 @@ async def deletep(ctx, playlist_name: str):
     else:
         await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
 
-@bot.command()
-async def cq(ctx):
+@bot.command(aliases=["therestoomuchhere")
+async def clearqueue(ctx):
     """Clears the music queue."""
     global song_queue
     song_queue = []  # Empty the queue
