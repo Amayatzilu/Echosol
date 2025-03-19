@@ -95,7 +95,7 @@ async def play(ctx, url: str = None):
         
         if 'entries' in info:  # If a playlist is provided
             for entry in info['entries']:
-                song_queue.append(entry['url'])
+                song_queue.append((entry['url'], entry['title']))  # Store both URL & title
             await ctx.send(f"🎵 Added {len(info['entries'])} songs from the playlist to queue!")
         else:
             song_queue.append((info['url'], info['title']))
@@ -111,13 +111,12 @@ async def play_next(ctx):
         return
 
     if song_queue:
-        song_data = song_queue.pop(0)
         song_url, song_title = song_queue.pop(0)  # Extract URL and title
 
         with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
             try:
-                info = ydl.extract_info(original_url, download=False)
-                refreshed_url = info['url']  # Get fresh YouTube streaming link
+                info = ydl.extract_info(song_url, download=False)  # Refresh the streaming URL
+                refreshed_url = info['url']
             except Exception as e:
                 await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
                 return await play_next(ctx)
@@ -127,7 +126,7 @@ async def play_next(ctx):
         def after_play(error):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
+        vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
         await ctx.send(f"▶️ Now playing: **{song_title}**")
     else:
