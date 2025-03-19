@@ -117,7 +117,7 @@ async def play(ctx, url: str = None):
     if not ctx.voice_client or not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-aasync def play_next(ctx):
+async def play_next(ctx):
     """Plays the next song in the queue, handling both YouTube and uploaded files."""
     global volume_level
     if ctx.voice_client and ctx.voice_client.is_playing():
