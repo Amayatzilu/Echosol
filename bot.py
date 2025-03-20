@@ -108,7 +108,7 @@ async def play(ctx, url: str = None):
         
         if 'entries' in info:  # If a playlist is provided
             for entry in info['entries']:
-                song_queue.append((entry['webpage_url'], entry['title']))  # Store original URL & title
+                song_queue.append((entry['url'], entry['title']))  # Store both URL & title
             await ctx.send(f"🎵 Added {len(info['entries'])} songs from the playlist to queue!")
         else:
             song_queue.append((info['url'], info['title']))
@@ -118,29 +118,30 @@ async def play(ctx, url: str = None):
         await play_next(ctx)
 
 async def play_next(ctx):
-    """Plays the next song in the queue, handling both YouTube and uploaded files."""
+    """Plays the next song in the queue, refreshing the YouTube URL if needed."""
     global volume_level
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
 
     if song_queue:
-        song_data = song_queue.pop(0)  # Get the next song
+        song_url, song_title = song_queue.pop(0)  # Extract URL and title
 
-        # Check if song_data is a tuple (YouTube song) or a string (uploaded file)
-        if isinstance(song_data, tuple):
-            song_url, song_title = song_data  # Extract URL & title
-        else:
-            song_url = song_data  # This is an uploaded file, no title available
-            song_title = os.path.basename(song_url)  # Use file name as title
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            try:
+                info = ydl.extract_info(song_url, download=False)  # Refresh the streaming URL
+                refreshed_url = info['url']
+            except Exception as e:
+                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
+                return await play_next(ctx)
 
         vc = ctx.voice_client
 
         def after_play(error):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
+        vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
-        await ctx.send(f"▶️ Now playing: **{song_title}**")  # Display title or file name
+        await ctx.send(f"▶️ Now playing: **{song_title}**")
     else:
         await ctx.send("✅ Queue is empty!")
 
