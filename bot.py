@@ -56,7 +56,8 @@ YDL_OPTIONS = {
 }
 
 FFMPEG_OPTIONS = {
-    'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -buffer_size 64K',
+    'options': '-vn'
 }
 
 song_queue = []
@@ -139,9 +140,14 @@ async def play_next(ctx):
         def after_play(error):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
-        vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
-        await ctx.send(f"▶️ Now playing: **{song_title}**")
+        try:
+            vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
+            vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
+            await ctx.send(f"▶️ Now playing: **{song_title}**")
+        except discord.errors.ClientException:
+            await ctx.send("⚠️ Connection lost, retrying...")
+            await asyncio.sleep(2)  # Wait a moment before retrying
+            await play_next(ctx)  # Try playing the song again
     else:
         await ctx.send("✅ Queue is empty!")
 
@@ -237,29 +243,35 @@ async def playnumber(ctx, *numbers):
         await play_next(ctx)
 
 async def play_next(ctx):
-    """Plays the next song in the queue, handling both YouTube and uploaded files."""
+    """Plays the next song in the queue, refreshing the YouTube URL if needed."""
     global volume_level
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
 
     if song_queue:
-        song_data = song_queue.pop(0)  # Get the next song
+        song_url, song_title = song_queue.pop(0)  # Extract URL and title
 
-        # Check if song_data is a tuple (YouTube song) or a string (uploaded file)
-        if isinstance(song_data, tuple):
-            song_url, song_title = song_data  # Extract URL & title
-        else:
-            song_url = song_data  # This is an uploaded file, no title available
-            song_title = os.path.basename(song_url)  # Use file name as title
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            try:
+                info = ydl.extract_info(song_url, download=False)  # Refresh the streaming URL
+                refreshed_url = info['url']
+            except Exception as e:
+                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
+                return await play_next(ctx)
 
         vc = ctx.voice_client
 
         def after_play(error):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
-        vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
-        await ctx.send(f"▶️ Now playing: **{song_title}**")  # Display title or file name
+        try:
+            vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
+            vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
+            await ctx.send(f"▶️ Now playing: **{song_title}**")
+        except discord.errors.ClientException:
+            await ctx.send("⚠️ Connection lost, retrying...")
+            await asyncio.sleep(2)  # Wait a moment before retrying
+            await play_next(ctx)  # Try playing the song again
     else:
         await ctx.send("✅ Queue is empty!")
 
