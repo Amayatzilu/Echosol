@@ -138,13 +138,13 @@ async def play_next(ctx):
         def after_play(error):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-	with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-	    try:
-		info = ydl.extract_info(song_url), download=False)
-		refreshed_url = info['url'] # get fresh YouTube streaming link
-	    except Exception as e:
-		await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song..."}
-		return await play_next(ctx)
+    with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+	try:
+	info = ydl.extract_info(song_url), download=False)
+	refreshed_url = info['url'] # get fresh YouTube streaming link
+    except Exception as e:
+	await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song..."}
+	return await play_next(ctx)
 
         vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
