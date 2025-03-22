@@ -56,8 +56,7 @@ YDL_OPTIONS = {
 }
 
 FFMPEG_OPTIONS = {
-    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -buffer_size 64K',
-    'options': '-vn'
+    'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
 
 song_queue = []
@@ -90,7 +89,7 @@ async def leave(ctx):
     else:
         await ctx.send("❌ I'm not in a voice channel.")
 
-@bot.command(aliases=["p", "gimmeatune", "spielen"])
+@bot.command(aliases=["p", "gimme", "spielen"])
 async def play(ctx, url: str = None):
     """Plays a song from YouTube or adds it to the queue."""
     if not url:
@@ -105,11 +104,12 @@ async def play(ctx, url: str = None):
             return
     
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-        info = ydl.extract_info(url, download=False)
-        
+        info = ydl.extract_info(song_url, download=False)
+        refreshed_url = info['url']
+
         if 'entries' in info:  # If a playlist is provided
             for entry in info['entries']:
-                song_queue.append((entry['url'], entry['title']))  # Store both URL & title
+                song_queue.append((entry['webpage_url'], entry['title']))  # Store original URL & title
             await ctx.send(f"🎵 Added {len(info['entries'])} songs from the playlist to queue!")
         else:
             song_queue.append((info['url'], info['title']))
@@ -119,35 +119,44 @@ async def play(ctx, url: str = None):
         await play_next(ctx)
 
 async def play_next(ctx):
-    """Plays the next song in the queue, refreshing the YouTube URL if needed."""
+    """Plays the next song in the queue, handling both YouTube and uploaded files with refreshed links."""
     global volume_level
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
 
     if song_queue:
-        song_url, song_title = song_queue.pop(0)  # Extract URL and title
+        song_data = song_queue.pop(0)  # Get the next song
 
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            try:
-                info = ydl.extract_info(song_url, download=False)  # Refresh the streaming URL
-                refreshed_url = info['url']
-            except Exception as e:
-                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-                return await play_next(ctx)
+        # If it's a YouTube song (tuple), refresh the stream link
+        if isinstance(song_data, tuple):
+            original_url, song_title = song_data
+
+            with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+                try:
+                    info = ydl.extract_info(original_url, download=False)
+                    song_url = info['url']  # Refreshed streaming URL
+                except Exception as e:
+                    await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
+                    return await play_next(ctx)
+        else:
+            # It's a local uploaded file
+            song_url = song_data
+            song_title = os.path.basename(song_url)
 
         vc = ctx.voice_client
 
         def after_play(error):
+            if error:
+                print(f"Playback error: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
         try:
-            vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
+            vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
             vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
             await ctx.send(f"▶️ Now playing: **{song_title}**")
-        except discord.errors.ClientException:
-            await ctx.send("⚠️ Connection lost, retrying...")
-            await asyncio.sleep(2)  # Wait a moment before retrying
-            await play_next(ctx)  # Try playing the song again
+        except Exception as e:
+            await ctx.send(f"⚠️ Failed to play song: {e}\nSkipping to next...")
+            await play_next(ctx)
     else:
         await ctx.send("✅ Queue is empty!")
 
@@ -194,7 +203,7 @@ async def queue(ctx):
     else:
         await ctx.send("❌ The queue is empty.")
 
-@bot.command(aliases=["ewwno"])
+@bot.command(aliases=["squishit"])
 async def remove(ctx, position: int):
     """Removes a song from the queue by its position."""
     if 1 <= position <= len(song_queue):
@@ -241,39 +250,6 @@ async def playnumber(ctx, *numbers):
     # Auto-play if nothing is currently playing
     if not ctx.voice_client or not ctx.voice_client.is_playing():
         await play_next(ctx)
-
-async def play_next(ctx):
-    """Plays the next song in the queue, refreshing the YouTube URL if needed."""
-    global volume_level
-    if ctx.voice_client and ctx.voice_client.is_playing():
-        return
-
-    if song_queue:
-        song_url, song_title = song_queue.pop(0)  # Extract URL and title
-
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            try:
-                info = ydl.extract_info(song_url, download=False)  # Refresh the streaming URL
-                refreshed_url = info['url']
-            except Exception as e:
-                await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-                return await play_next(ctx)
-
-        vc = ctx.voice_client
-
-        def after_play(error):
-            asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
-
-        try:
-            vc.play(discord.FFmpegPCMAudio(refreshed_url, **FFMPEG_OPTIONS), after=after_play)
-            vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
-            await ctx.send(f"▶️ Now playing: **{song_title}**")
-        except discord.errors.ClientException:
-            await ctx.send("⚠️ Connection lost, retrying...")
-            await asyncio.sleep(2)  # Wait a moment before retrying
-            await play_next(ctx)  # Try playing the song again
-    else:
-        await ctx.send("✅ Queue is empty!")
 
 @bot.event
 async def on_message(message):
@@ -351,7 +327,7 @@ async def deleteplaylist(ctx, playlist_name: str):
     else:
         await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
 
-@bot.command(aliases=["therestoomuchhere", "cq"])
+@bot.command(aliases=["spankies", "cq"])
 async def clearqueue(ctx):
     """Clears the music queue."""
     global song_queue
