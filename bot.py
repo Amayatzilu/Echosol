@@ -104,9 +104,8 @@ async def play(ctx, url: str = None):
             return
     
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-        info = ydl.extract_info(song_url, download=False)
-        refreshed_url = info['url']
-
+        info = ydl.extract_info(url, download=False)
+        
         if 'entries' in info:  # If a playlist is provided
             for entry in info['entries']:
                 song_queue.append((entry['webpage_url'], entry['title']))  # Store original URL & title
