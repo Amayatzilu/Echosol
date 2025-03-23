@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 import yt_dlp as youtube_dl
 import asyncio
+import random
 
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
@@ -26,7 +27,7 @@ if cookie_data:
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
 
-@bot.command(aliases=["lost", "helfen"])
+@bot.command(aliases=["lost", "helfen","aide"])
 async def help(ctx):
     """Displays all main commands."""
     help_text = "**🎵 Available Commands:**\n"
@@ -70,7 +71,7 @@ async def on_ready():
     uploaded_files = [f for f in os.listdir(MUSIC_FOLDER) if f.endswith(('.mp3', '.wav'))]
     print(f'Logged in as {bot.user}')
 
-@bot.command(aliases=["playwithme", "connect", "verbinden"])
+@bot.command(aliases=["playwithme", "connect", "verbinden", "rejoindre"])
 async def join(ctx):
     """Joins a voice channel."""
     if ctx.author.voice:
@@ -80,7 +81,7 @@ async def join(ctx):
     else:
         await ctx.send("❌ You need to be in a voice channel first!")
 
-@bot.command(aliases=["goaway", "disconnect", "verlassen"])
+@bot.command(aliases=["goaway", "disconnect", "verlassen", "partir"])
 async def leave(ctx):
     """Leaves the voice channel."""
     if ctx.voice_client:
@@ -89,7 +90,7 @@ async def leave(ctx):
     else:
         await ctx.send("❌ I'm not in a voice channel.")
 
-@bot.command(aliases=["p", "gimme", "spielen"])
+@bot.command(aliases=["p", "gimme", "spielen", "jouer"])
 async def play(ctx, url: str = None):
     """Plays a song from YouTube or adds it to the queue."""
     if not url:
@@ -151,6 +152,15 @@ async def play_next(ctx):
     else:
         await ctx.send("✅ Queue is empty!")
 
+@bot.command(aliases=["mixitup", "mischen", "shuff"])
+async def shuffle(ctx):
+    """Shuffles the current music queue."""
+    if len(song_queue) > 1:
+        random.shuffle(song_queue)
+        await ctx.send("🔀 The queue has been shuffled!")
+    else:
+        await ctx.send("❌ Not enough songs in the queue to shuffle.")
+
 @bot.command(aliases=["hush"])
 async def pause(ctx):
     """Pauses the current song."""
@@ -187,49 +197,61 @@ async def volume(ctx, volume: int):
 
 @bot.command(aliases=["whatsnext", "q"])
 async def queue(ctx):
-    """Displays the current queue with pagination."""
+    """Displays the current queue with pagination and shuffle button."""
     if not song_queue:
         await ctx.send("❌ The queue is empty.")
         return
 
-    per_page = 10
-    pages = [song_queue[i:i+per_page] for i in range(0, len(song_queue), per_page)]
-
-    async def get_queue_embed(page_index):
-        page = pages[page_index]
-        queue_list = "\n".join([
-            f"{(page_index * per_page) + i + 1}. {os.path.basename(song[1] if isinstance(song, tuple) else song)}"
-            for i, song in enumerate(page)
-        ])
-        embed = discord.Embed(
-            title=f"📜 Current Queue (Page {page_index + 1}/{len(pages)})",
-            description=queue_list,
-            color=discord.Color.orange()
-        )
-        return embed
-
-    current_page = 0
-    message = await ctx.send(embed=await get_queue_embed(current_page), view=None)
-
-    class QueuePaginationView(View):
+    class QueuePages(View):
         def __init__(self):
-            super().__init__(timeout=60)
+            super().__init__(timeout=None)
+            self.page = 0
+            self.items_per_page = 10
 
-        @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
-        async def prev(self, interaction: discord.Interaction, button: Button):
-            nonlocal current_page
-            if current_page > 0:
-                current_page -= 1
-                await interaction.response.edit_message(embed=await get_queue_embed(current_page), view=self)
+        async def send_page(self, interaction):
+            start = self.page * self.items_per_page
+            end = start + self.items_per_page
+            page_items = song_queue[start:end]
+            if not page_items:
+                await interaction.response.send_message("❌ No items on this page.", ephemeral=True)
+                return
 
-        @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
-        async def next(self, interaction: discord.Interaction, button: Button):
-            nonlocal current_page
-            if current_page < len(pages) - 1:
-                current_page += 1
-                await interaction.response.edit_message(embed=await get_queue_embed(current_page), view=self)
+            queue_display = '\n'.join([
+                f"{i+1}. {os.path.basename(song[1]) if isinstance(song, tuple) else os.path.basename(song)}"
+                for i, song in enumerate(page_items, start=start)
+            ])
+            await interaction.response.edit_message(content=f"📜 **Queue Page {self.page + 1}:**\n```{queue_display}```", view=self)
 
-    await message.edit(view=QueuePaginationView())
+        @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
+        async def prev_page(self, interaction: discord.Interaction, button: Button):
+            if self.page > 0:
+                self.page -= 1
+                await self.send_page(interaction)
+
+        @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
+        async def next_page(self, interaction: discord.Interaction, button: Button):
+            max_pages = (len(song_queue) - 1) // self.items_per_page
+            if self.page < max_pages:
+                self.page += 1
+                await self.send_page(interaction)
+
+        @discord.ui.button(label="🔀 Shuffle", style=discord.ButtonStyle.primary)
+        async def shuffle_button(self, interaction: discord.Interaction, button: Button):
+            import random
+            random.shuffle(song_queue)
+            self.page = 0
+            await interaction.response.send_message("🔀 Queue shuffled!", ephemeral=True)
+            await self.send_page(interaction)
+
+    view = QueuePages()
+    start = 0
+    end = start + view.items_per_page
+    page_items = song_queue[start:end]
+    queue_display = '\n'.join([
+        f"{i+1}. {os.path.basename(song[1]) if isinstance(song, tuple) else os.path.basename(song)}"
+        for i, song in enumerate(page_items, start=start)
+    ])
+    await ctx.send(f"📜 **Queue Page 1:**\n```{queue_display}```", view=view)
 
 from discord.ui import View, Button
 
@@ -372,15 +394,57 @@ async def addtoplaylist(ctx, playlist_name: str, url: str):
 
 @bot.command(aliases=["sp"])
 async def showplaylist(ctx, playlist_name: str):
-    """Displays songs in a playlist."""
+    """Displays songs in a playlist with pagination and shuffle."""
     if playlist_name not in playlists or not playlists[playlist_name]:
         await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
-    else:
-        playlist_songs = '\n'.join([f"{i+1}. {song}" for i, song in enumerate(playlists[playlist_name])])
-        await ctx.send(f"📜 **Playlist '{playlist_name}':**\n{playlist_songs}")
+        return
 
-@bot.command()
-async def playlist(ctx, playlist_name: str):
+    songs = playlists[playlist_name]
+    page = 0
+    items_per_page = 10
+
+    def get_page_embed():
+        start = page * items_per_page
+        end = start + items_per_page
+        current_page_songs = songs[start:end]
+        embed = discord.Embed(
+            title=f"📜 Playlist '{playlist_name}'",
+            description='\n'.join([f"{i+1+start}. {song}" for i, song in enumerate(current_page_songs)]),
+            color=discord.Color.purple()
+        )
+        embed.set_footer(text=f"Page {page+1}/{(len(songs) + items_per_page - 1) // items_per_page}")
+        return embed
+
+    class PlaylistView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=60)
+            self.message = None
+
+        @discord.ui.button(label="◀️ Prev", style=discord.ButtonStyle.secondary)
+        async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+            nonlocal page
+            if page > 0:
+                page -= 1
+                await interaction.response.edit_message(embed=get_page_embed(), view=self)
+
+        @discord.ui.button(label="▶️ Next", style=discord.ButtonStyle.secondary)
+        async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+            nonlocal page
+            if (page + 1) * items_per_page < len(songs):
+                page += 1
+                await interaction.response.edit_message(embed=get_page_embed(), view=self)
+
+        @discord.ui.button(label="🔀 Shuffle", style=discord.ButtonStyle.success)
+        async def shuffle_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            import random
+            random.shuffle(playlists[playlist_name])
+            await interaction.response.edit_message(embed=get_page_embed(), view=self)
+
+    view = PlaylistView()
+    await ctx.send(embed=get_page_embed(), view=view)
+
+@bot.command(aliases=["playlist"])
+async def loadplaylist(ctx, playlist_name: str):
     """Plays all songs from a playlist."""
     if playlist_name not in playlists or not playlists[playlist_name]:
         await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
