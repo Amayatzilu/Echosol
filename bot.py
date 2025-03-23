@@ -203,16 +203,53 @@ async def remove(ctx, position: int):
     else:
         await ctx.send("❌ Invalid queue position. Use `!queue` to see available songs.")
 
+from discord.ui import View, Button
+
 @bot.command(aliases=["whatwegot"])
 async def listsongs(ctx):
-    """Lists available uploaded songs with numbered IDs."""
-    if uploaded_files:
-        song_list = '\n'.join([f"{i+1}. {song}" for i, song in enumerate(uploaded_files)])
-        await ctx.send(f"🎵 **Available Songs:**\n```{song_list}```\nUse `!playnumber <number>` to play a song.")
-    else:
+    """Lists available uploaded songs with pagination."""
+    if not uploaded_files:
         await ctx.send("❌ No songs found in the music folder!")
+        return
 
-@bot.command(aliases=["number", "nummer", "n"])
+    per_page = 10
+    pages = [uploaded_files[i:i+per_page] for i in range(0, len(uploaded_files), per_page)]
+
+    async def get_page_embed(page_index):
+        page = pages[page_index]
+        song_list = "\n".join([f"{(page_index * per_page) + i + 1}. {song}" for i, song in enumerate(page)])
+        embed = discord.Embed(
+            title=f"🎵 Uploaded Songs (Page {page_index + 1}/{len(pages)})",
+            description=song_list,
+            color=discord.Color.purple()
+        )
+        embed.set_footer(text="Use !playnumber <number> to play a song.")
+        return embed
+
+    current_page = 0
+    message = await ctx.send(embed=await get_page_embed(current_page), view=None)
+
+    class PaginationView(View):
+        def __init__(self):
+            super().__init__(timeout=60)
+
+        @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
+        async def prev(self, interaction: discord.Interaction, button: Button):
+            nonlocal current_page
+            if current_page > 0:
+                current_page -= 1
+                await interaction.response.edit_message(embed=await get_page_embed(current_page), view=self)
+
+        @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
+        async def next(self, interaction: discord.Interaction, button: Button):
+            nonlocal current_page
+            if current_page < len(pages) - 1:
+                current_page += 1
+                await interaction.response.edit_message(embed=await get_page_embed(current_page), view=self)
+
+    await message.edit(view=PaginationView())
+
+@bot.command(aliases=["number", "n"])
 async def playnumber(ctx, *numbers):
     """Plays one or multiple uploaded songs using their numbers."""
     added_songs = []
