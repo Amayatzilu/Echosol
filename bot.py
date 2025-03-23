@@ -187,27 +187,55 @@ async def volume(ctx, volume: int):
 
 @bot.command(aliases=["whatsnext", "q"])
 async def queue(ctx):
-    """Displays the current queue."""
-    if song_queue:
-        queue_list = '\n'.join([f"{i+1}. {os.path.basename(song)}" for i, song in enumerate(song_queue)])
-        await ctx.send(f"📜 **Current Queue:**\n```{queue_list}```")
-    else:
+    """Displays the current queue with pagination."""
+    if not song_queue:
         await ctx.send("❌ The queue is empty.")
+        return
 
-@bot.command(aliases=["squishit"])
-async def remove(ctx, position: int):
-    """Removes a song from the queue by its position."""
-    if 1 <= position <= len(song_queue):
-        removed_song = song_queue.pop(position - 1)
-        await ctx.send(f"🗑 Removed **{os.path.basename(removed_song)}** from the queue.")
-    else:
-        await ctx.send("❌ Invalid queue position. Use `!queue` to see available songs.")
+    per_page = 10
+    pages = [song_queue[i:i+per_page] for i in range(0, len(song_queue), per_page)]
+
+    async def get_queue_embed(page_index):
+        page = pages[page_index]
+        queue_list = "\n".join([
+            f"{(page_index * per_page) + i + 1}. {os.path.basename(song[1] if isinstance(song, tuple) else song)}"
+            for i, song in enumerate(page)
+        ])
+        embed = discord.Embed(
+            title=f"📜 Current Queue (Page {page_index + 1}/{len(pages)})",
+            description=queue_list,
+            color=discord.Color.orange()
+        )
+        return embed
+
+    current_page = 0
+    message = await ctx.send(embed=await get_queue_embed(current_page), view=None)
+
+    class QueuePaginationView(View):
+        def __init__(self):
+            super().__init__(timeout=60)
+
+        @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
+        async def prev(self, interaction: discord.Interaction, button: Button):
+            nonlocal current_page
+            if current_page > 0:
+                current_page -= 1
+                await interaction.response.edit_message(embed=await get_queue_embed(current_page), view=self)
+
+        @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
+        async def next(self, interaction: discord.Interaction, button: Button):
+            nonlocal current_page
+            if current_page < len(pages) - 1:
+                current_page += 1
+                await interaction.response.edit_message(embed=await get_queue_embed(current_page), view=self)
+
+    await message.edit(view=QueuePaginationView())
 
 from discord.ui import View, Button
 
 @bot.command(aliases=["whatwegot"])
 async def listsongs(ctx):
-    """Lists available uploaded songs with pagination."""
+    """Lists available uploaded songs with pagination and play option."""
     if not uploaded_files:
         await ctx.send("❌ No songs found in the music folder!")
         return
@@ -239,6 +267,22 @@ async def listsongs(ctx):
             if current_page > 0:
                 current_page -= 1
                 await interaction.response.edit_message(embed=await get_page_embed(current_page), view=self)
+
+        @discord.ui.button(label="▶️ Play This Page", style=discord.ButtonStyle.green)
+        async def play_page(self, interaction: discord.Interaction, button: Button):
+            page = pages[current_page]
+            added = []
+            for filename in page:
+                song_path = os.path.join(MUSIC_FOLDER, filename)
+                song_queue.append(song_path)
+                added.append(filename)
+            await interaction.response.send_message(f"🎶 Added {len(added)} songs from page {current_page + 1} to queue!", ephemeral=True)
+
+            # Auto play if nothing is currently playing
+            if not ctx.voice_client or not ctx.voice_client.is_playing():
+                if not ctx.voice_client and ctx.author.voice:
+                    await ctx.author.voice.channel.connect()
+                await play_next(ctx)
 
         @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
         async def next(self, interaction: discord.Interaction, button: Button):
