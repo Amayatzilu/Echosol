@@ -103,18 +103,23 @@ async def play(ctx, url: str = None):
         else:
             await ctx.send("❌ You need to be in a voice channel to play music!")
             return
-    
+
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
         info = ydl.extract_info(url, download=False)
-        
+
         if 'entries' in info:  # If a playlist is provided
             for entry in info['entries']:
-                song_queue.append((entry['webpage_url'], entry['title']))  # Store original URL & title
+                # Make sure each entry is fully extracted
+                if '_type' in entry and entry['_type'] == 'url':
+                    entry_info = ydl.extract_info(entry['url'], download=False)
+                else:
+                    entry_info = entry
+                song_queue.append((entry_info['url'], entry_info['title']))
             await ctx.send(f"🎵 Added {len(info['entries'])} songs from the playlist to queue!")
         else:
             song_queue.append((info['url'], info['title']))
             await ctx.send(f"🎵 Added to queue: **{info['title']}**")
-    
+
     if not ctx.voice_client or not ctx.voice_client.is_playing():
         await play_next(ctx)
 
