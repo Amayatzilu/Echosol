@@ -8,9 +8,10 @@ import random
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
 
-# Bot setup
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True  # Allow the bot to track server members (including itself)
+
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Define music folder path for uploaded files
