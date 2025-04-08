@@ -105,25 +105,31 @@ async def play(ctx, url: str = None):
             await ctx.send("❌ You need to be in a voice channel to play music!")
             return
 
-    with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-        info = ydl.extract_info(url, download=False)
+    try:
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(url, download=False)
 
-        if 'entries' in info:  # If a playlist is provided
-            for entry in info['entries']:
-                # Make sure each entry is fully extracted
-                if '_type' in entry and entry['_type'] == 'url':
-                    entry_info = ydl.extract_info(entry['url'], download=False)
-                else:
-                    entry_info = entry
-                song_queue.append((entry_info['url'], entry_info['title']))
-            await ctx.send(f"🎵 Added {len(info['entries'])} songs from the playlist to queue!")
-        else:
-            song_queue.append((info['url'], info['title']))
-            await ctx.send(f"🎵 Added to queue: **{info['title']}**")
+            if 'entries' in info:  # Playlist
+                added = 0
+                for entry in info['entries']:
+                    if entry:
+                        if '_type' in entry and entry['_type'] == 'url':
+                            entry_info = ydl.extract_info(entry['url'], download=False)
+                        else:
+                            entry_info = entry
+                        song_queue.append((entry_info['url'], entry_info['title']))
+                        added += 1
+                await ctx.send(f"🎵 Added {added} songs from the playlist to the queue!")
+            else:  # Single video
+                song_queue.append((info['url'], info['title']))
+                await ctx.send(f"🎵 Added to queue: **{info['title']}**")
 
-    if not ctx.voice_client or not ctx.voice_client.is_playing():
+    except Exception as e:
+        await ctx.send(f"⚠️ Error adding song: {e}")
+        return
+
+    if not ctx.voice_client.is_playing():
         await play_next(ctx)
-
 async def play_next(ctx):
     """Plays the next song in the queue, handling both YouTube and uploaded files."""
     global volume_level
