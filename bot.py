@@ -285,25 +285,25 @@ async def listsongs(ctx):
             description=song_list,
             color=discord.Color.purple()
         )
-        embed.set_footer(text="Use !playnumber <number> to play a song.")
+        embed.set_footer(text="Use !number <number> to play a song or !page <page> to queue a full page.")
         return embed
 
     current_page = 0
     message = await ctx.send(embed=await get_page_embed(current_page), view=None)
 
-    class PaginationView(View):
+    class PaginationView(discord.ui.View):
         def __init__(self):
             super().__init__(timeout=60)
 
         @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
-        async def prev(self, interaction: discord.Interaction, button: Button):
+        async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
             nonlocal current_page
             if current_page > 0:
                 current_page -= 1
                 await interaction.response.edit_message(embed=await get_page_embed(current_page), view=self)
 
         @discord.ui.button(label="▶️ Play This Page", style=discord.ButtonStyle.green)
-        async def play_page(self, interaction: discord.Interaction, button: Button):
+        async def play_page(self, interaction: discord.Interaction, button: discord.ui.Button):
             page = pages[current_page]
             added = []
             for filename in page:
@@ -312,20 +312,83 @@ async def listsongs(ctx):
                 added.append(filename)
             await interaction.response.send_message(f"🎶 Added {len(added)} songs from page {current_page + 1} to queue!", ephemeral=True)
 
-            # Auto play if nothing is currently playing
-            if not ctx.voice_client or not ctx.voice_client.is_playing():
-                if not ctx.voice_client and ctx.author.voice:
+            if not ctx.voice_client:
+                if ctx.author.voice:
                     await ctx.author.voice.channel.connect()
+            if not ctx.voice_client.is_playing():
                 await play_next(ctx)
 
         @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
-        async def next(self, interaction: discord.Interaction, button: Button):
+        async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
             nonlocal current_page
             if current_page < len(pages) - 1:
                 current_page += 1
                 await interaction.response.edit_message(embed=await get_page_embed(current_page), view=self)
 
+        @discord.ui.button(label="📄 Go To Page", style=discord.ButtonStyle.gray)
+        async def jump_to(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_message("✏️ Please enter the page number you'd like to jump to:", ephemeral=True)
+
+            def check(m):
+                return m.author == ctx.author and m.channel == ctx.channel
+
+            try:
+                msg = await bot.wait_for("message", check=check, timeout=30.0)
+                page_number = int(msg.content.strip()) - 1
+                if 0 <= page_number < len(pages):
+                    nonlocal current_page
+                    current_page = page_number
+                    await message.edit(embed=await get_page_embed(current_page), view=self)
+                    await msg.delete()
+                else:
+                    await ctx.send("❌ Invalid page number.", delete_after=5)
+            except (ValueError, asyncio.TimeoutError):
+                await ctx.send("❌ Failed to get valid page number.", delete_after=5)
+
     await message.edit(view=PaginationView())
+
+@bot.command(aliases=["pp", "seite"])
+async def page(ctx, *pages):
+    """Plays one or more pages of uploaded songs."""
+    per_page = 10
+    total_pages = (len(uploaded_files) + per_page - 1) // per_page
+    added = []
+
+    if not pages:
+        await ctx.send("❌ Please provide one or more page numbers (e.g. `!page 1 2 3`).")
+        return
+
+    for page_str in pages:
+        try:
+            page = int(page_str)
+            if page < 1 or page > total_pages:
+                await ctx.send(f"❌ Page {page} is out of range. Skipping.")
+                continue
+
+            start = (page - 1) * per_page
+            end = start + per_page
+            for filename in uploaded_files[start:end]:
+                song_path = os.path.join(MUSIC_FOLDER, filename)
+                song_queue.append(song_path)
+                added.append(filename)
+        except ValueError:
+            await ctx.send(f"❌ `{page_str}` is not a valid number. Skipping.")
+
+    if not added:
+        await ctx.send("❌ No songs were added to the queue.")
+        return
+
+    await ctx.send(f"🎶 Added {len(added)} songs from page(s) {', '.join(pages)} to the queue!")
+
+    if not ctx.voice_client:
+        if ctx.author.voice:
+            await ctx.author.voice.channel.connect()
+        else:
+            await ctx.send("❌ You need to be in a voice channel to play music!")
+            return
+
+    if not ctx.voice_client.is_playing():
+        await play_next(ctx)
 
 @bot.command(aliases=["number", "n"])
 async def playnumber(ctx, *numbers):
