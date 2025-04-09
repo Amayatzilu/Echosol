@@ -285,7 +285,7 @@ async def listsongs(ctx):
             description=song_list,
             color=discord.Color.purple()
         )
-        embed.set_footer(text="Use !number <number> to play a song or !page <page> to queue a full page.")
+        embed.set_footer(text="Use !playnumber <number> to play a song or jump to a page below.")
         return embed
 
     current_page = 0
@@ -293,7 +293,7 @@ async def listsongs(ctx):
 
     class PaginationView(discord.ui.View):
         def __init__(self):
-            super().__init__(timeout=60)
+            super().__init__(timeout=120)
 
         @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
         async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -312,10 +312,9 @@ async def listsongs(ctx):
                 added.append(filename)
             await interaction.response.send_message(f"🎶 Added {len(added)} songs from page {current_page + 1} to queue!", ephemeral=True)
 
-            if not ctx.voice_client:
-                if ctx.author.voice:
+            if not ctx.voice_client or not ctx.voice_client.is_playing():
+                if not ctx.voice_client and ctx.author.voice:
                     await ctx.author.voice.channel.connect()
-            if not ctx.voice_client.is_playing():
                 await play_next(ctx)
 
         @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
@@ -325,25 +324,13 @@ async def listsongs(ctx):
                 current_page += 1
                 await interaction.response.edit_message(embed=await get_page_embed(current_page), view=self)
 
-        @discord.ui.button(label="📄 Go To Page", style=discord.ButtonStyle.gray)
-        async def jump_to(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_message("✏️ Please enter the page number you'd like to jump to:", ephemeral=True)
-
-            def check(m):
-                return m.author == ctx.author and m.channel == ctx.channel
-
-            try:
-                msg = await bot.wait_for("message", check=check, timeout=30.0)
-                page_number = int(msg.content.strip()) - 1
-                if 0 <= page_number < len(pages):
-                    nonlocal current_page
-                    current_page = page_number
-                    await message.edit(embed=await get_page_embed(current_page), view=self)
-                    await msg.delete()
-                else:
-                    await ctx.send("❌ Invalid page number.", delete_after=5)
-            except (ValueError, asyncio.TimeoutError):
-                await ctx.send("❌ Failed to get valid page number.", delete_after=5)
+        @discord.ui.select(placeholder="📚 Jump to a page...", options=[
+            discord.SelectOption(label=f"Page {i+1}", value=str(i)) for i in range(len(pages))
+        ])
+        async def jump_to(self, interaction: discord.Interaction, select: discord.ui.Select):
+            nonlocal current_page
+            current_page = int(select.values[0])
+            await interaction.response.edit_message(embed=await get_page_embed(current_page), view=self)
 
     await message.edit(view=PaginationView())
 
