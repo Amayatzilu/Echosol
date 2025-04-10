@@ -117,11 +117,11 @@ async def play(ctx, url: str = None):
                             entry_info = ydl.extract_info(entry['url'], download=False)
                         else:
                             entry_info = entry
-                        song_queue.append((entry_info['url'], entry_info['title']))
+                        song_queue.append((entry_info['webpage_url'], entry_info['title']))
                         added += 1
                 await ctx.send(f"🎵 Added {added} songs from the playlist to the queue!")
             else:  # Single video
-                song_queue.append((info['url'], info['title']))
+                song_queue.append((info['webpage_url'], info['title']))
                 await ctx.send(f"🎵 Added to queue: **{info['title']}**")
 
     except Exception as e:
