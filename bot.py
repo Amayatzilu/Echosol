@@ -334,8 +334,8 @@ async def listsongs(ctx):
 
     await message.edit(view=PaginationView())
 
-@bot.command(aliases=["pp", "seite"])
-async def page(ctx, *pages):
+@bot.command(aliases=["pp", "seite", "page"])
+async def playpage(ctx, *pages):
     """Plays one or more pages of uploaded songs."""
     per_page = 10
     total_pages = (len(uploaded_files) + per_page - 1) // per_page
@@ -437,6 +437,17 @@ async def createplaylist(ctx, playlist_name: str):
     else:
         playlists[playlist_name] = []
         await ctx.send(f"✅ Created playlist '{playlist_name}'!")
+
+@bot.command(aliases=["cpq"])
+async def createplaylistqueue(ctx, playlist_name: str):
+    """Creates a new playlist using the current queue."""
+    if playlist_name in playlists:
+        await ctx.send(f"❌ Playlist '{playlist_name}' already exists.")
+    elif not song_queue:
+        await ctx.send("❌ The queue is empty, cannot create playlist.")
+    else:
+        playlists[playlist_name] = song_queue.copy()
+        await ctx.send(f"✅ Created playlist '{playlist_name}' from current queue!")
 
 @bot.command(aliases=["atp"])
 async def addtoplaylist(ctx, playlist_name: str, url: str):
