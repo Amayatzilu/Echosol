@@ -278,7 +278,6 @@ async def listsongs(ctx):
     per_page = 10
     total_pages = math.ceil(len(uploaded_files) / per_page)
     range_size = 25  # Max pages shown per dropdown range
-    page_range_index = 0  # Start with first 25 pages
     current_page = 0
 
     def get_page_embed(page_index):
@@ -294,30 +293,35 @@ async def listsongs(ctx):
         embed.set_footer(text="Use !playnumber <number> to play a song.")
         return embed
 
-    class PageSelector(Select):
-        def __init__(self, view):
-            self.view = view
-            self.update_options()
-            super().__init__(placeholder="Jump to page...", options=self.view.page_options)
-
-        def update_options(self):
-            start_page = self.view.page_range_index * range_size
-            end_page = min(start_page + range_size, total_pages)
-            self.view.page_options = [
-                discord.SelectOption(label=f"Page {i+1}", value=str(i)) for i in range(start_page, end_page)
-            ]
-
-        async def callback(self, interaction: discord.Interaction):
-            self.view.current_page = int(self.values[0])
-            await interaction.response.edit_message(embed=get_page_embed(self.view.current_page), view=self.view)
-
     class PaginationView(View):
         def __init__(self):
             super().__init__(timeout=60)
             self.current_page = 0
             self.page_range_index = 0
             self.page_options = []
-            self.selector = PageSelector(self)
+            self.selector = None
+            self.add_selector()
+
+        def add_selector(self):
+            if self.selector:
+                self.remove_item(self.selector)
+            self.page_options = [
+                discord.SelectOption(label=f"Page {i+1}", value=str(i))
+                for i in range(
+                    self.page_range_index * range_size,
+                    min((self.page_range_index + 1) * range_size, total_pages)
+                )
+            ]
+            self.selector = Select(
+                placeholder="Jump to page...",
+                options=self.page_options
+            )
+
+            async def select_callback(interaction: discord.Interaction):
+                self.current_page = int(self.selector.values[0])
+                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
+
+            self.selector.callback = select_callback
             self.add_item(self.selector)
 
         @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
@@ -354,7 +358,7 @@ async def listsongs(ctx):
         async def prev_range(self, interaction: discord.Interaction, button: Button):
             if self.page_range_index > 0:
                 self.page_range_index -= 1
-                self.refresh_dropdown()
+                self.add_selector()
                 await interaction.response.edit_message(view=self)
 
         @discord.ui.button(label="🔁 Next Range", style=discord.ButtonStyle.secondary, row=1)
@@ -362,14 +366,8 @@ async def listsongs(ctx):
             max_index = (total_pages - 1) // range_size
             if self.page_range_index < max_index:
                 self.page_range_index += 1
-                self.refresh_dropdown()
+                self.add_selector()
                 await interaction.response.edit_message(view=self)
-
-        def refresh_dropdown(self):
-            self.remove_item(self.selector)
-            self.selector.update_options()
-            self.selector = PageSelector(self)
-            self.add_item(self.selector)
 
     view = PaginationView()
     await ctx.send(embed=get_page_embed(current_page), view=view)
