@@ -266,7 +266,7 @@ async def queue(ctx):
     await ctx.send(f"📜 **Queue Page 1:**\n```{queue_display}```", view=view)
 
 from discord.ui import View, Button, Select
-from math import ceil
+import math
 
 @bot.command(aliases=["whatwegot"])
 async def listsongs(ctx):
@@ -276,67 +276,103 @@ async def listsongs(ctx):
         return
 
     per_page = 10
-    total_pages = ceil(len(uploaded_files) / per_page)
+    total_pages = math.ceil(len(uploaded_files) / per_page)
+    range_size = 25  # Max pages shown per dropdown range
+    page_range_index = 0  # Start with first 25 pages
+    current_page = 0
 
-    def get_page(page_index):
+    def get_page_embed(page_index):
         start = page_index * per_page
         end = start + per_page
-        return uploaded_files[start:end]
-
-    def make_embed(page_index):
-        page = get_page(page_index)
-        song_list = "\n".join([f"{(page_index * per_page) + i + 1}. {song}" for i, song in enumerate(page)])
+        page = uploaded_files[start:end]
+        song_list = "\n".join([f"{start + i + 1}. {song}" for i, song in enumerate(page)])
         embed = discord.Embed(
             title=f"🎵 Uploaded Songs (Page {page_index + 1}/{total_pages})",
-            description=song_list or "No songs on this page.",
+            description=song_list,
             color=discord.Color.purple()
         )
         embed.set_footer(text="Use !playnumber <number> to play a song.")
         return embed
 
-    class PaginationView(View):
-        def __init__(self, page_index=0):
-            super().__init__(timeout=300)
-            self.page_index = page_index
+    class PageSelector(Select):
+        def __init__(self, view):
+            self.view = view
+            self.update_options()
+            super().__init__(placeholder="Jump to page...", options=self.view.page_options)
 
-        async def update(self, interaction):
-            await interaction.response.edit_message(embed=make_embed(self.page_index), view=self)
+        def update_options(self):
+            start_page = self.view.page_range_index * range_size
+            end_page = min(start_page + range_size, total_pages)
+            self.view.page_options = [
+                discord.SelectOption(label=f"Page {i+1}", value=str(i)) for i in range(start_page, end_page)
+            ]
+
+        async def callback(self, interaction: discord.Interaction):
+            self.view.current_page = int(self.values[0])
+            await interaction.response.edit_message(embed=get_page_embed(self.view.current_page), view=self.view)
+
+    class PaginationView(View):
+        def __init__(self):
+            super().__init__(timeout=60)
+            self.current_page = 0
+            self.page_range_index = 0
+            self.page_options = []
+            self.selector = PageSelector(self)
+            self.add_item(self.selector)
 
         @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
-        async def prev(self, interaction: discord.Interaction, button: Button):
-            if self.page_index > 0:
-                self.page_index -= 1
-                await self.update(interaction)
+        async def prev_page(self, interaction: discord.Interaction, button: Button):
+            if self.current_page > 0:
+                self.current_page -= 1
+                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
 
         @discord.ui.button(label="▶️ Play This Page", style=discord.ButtonStyle.green)
-        async def play_page(self, interaction: discord.Interaction, button: Button):
-            songs = get_page(self.page_index)
-            for filename in songs:
-                song_queue.append(os.path.join(MUSIC_FOLDER, filename))
-            await interaction.response.send_message(f"🎶 Added {len(songs)} songs from page {self.page_index + 1} to queue!", ephemeral=True)
+        async def play_this_page(self, interaction: discord.Interaction, button: Button):
+            start = self.current_page * per_page
+            end = start + per_page
+            added = []
+            for filename in uploaded_files[start:end]:
+                song_path = os.path.join(MUSIC_FOLDER, filename)
+                song_queue.append(song_path)
+                added.append(filename)
+            await interaction.response.send_message(
+                f"🎶 Added {len(added)} songs from page {self.current_page + 1} to queue!",
+                ephemeral=True
+            )
             if not ctx.voice_client or not ctx.voice_client.is_playing():
                 if not ctx.voice_client and ctx.author.voice:
                     await ctx.author.voice.channel.connect()
                 await play_next(ctx)
 
         @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
-        async def next(self, interaction: discord.Interaction, button: Button):
-            if self.page_index < total_pages - 1:
-                self.page_index += 1
-                await self.update(interaction)
+        async def next_page(self, interaction: discord.Interaction, button: Button):
+            if self.current_page < total_pages - 1:
+                self.current_page += 1
+                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
 
-        @discord.ui.select(
-            placeholder="📖 Jump to page...",
-            options=[
-                discord.SelectOption(label=f"Page {i+1}", value=str(i))
-                for i in range(min(total_pages, 100))  # Discord limit: 100 options
-            ]
-        )
-        async def jump_to_page(self, interaction: discord.Interaction, select: Select):
-            self.page_index = int(select.values[0])
-            await self.update(interaction)
+        @discord.ui.button(label="🔁 Prev Range", style=discord.ButtonStyle.secondary, row=1)
+        async def prev_range(self, interaction: discord.Interaction, button: Button):
+            if self.page_range_index > 0:
+                self.page_range_index -= 1
+                self.refresh_dropdown()
+                await interaction.response.edit_message(view=self)
 
-    await ctx.send(embed=make_embed(0), view=PaginationView())
+        @discord.ui.button(label="🔁 Next Range", style=discord.ButtonStyle.secondary, row=1)
+        async def next_range(self, interaction: discord.Interaction, button: Button):
+            max_index = (total_pages - 1) // range_size
+            if self.page_range_index < max_index:
+                self.page_range_index += 1
+                self.refresh_dropdown()
+                await interaction.response.edit_message(view=self)
+
+        def refresh_dropdown(self):
+            self.remove_item(self.selector)
+            self.selector.update_options()
+            self.selector = PageSelector(self)
+            self.add_item(self.selector)
+
+    view = PaginationView()
+    await ctx.send(embed=get_page_embed(current_page), view=view)
 
 @bot.command(aliases=["pp", "seite", "page"])
 async def playpage(ctx, *pages):
