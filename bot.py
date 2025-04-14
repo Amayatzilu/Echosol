@@ -661,7 +661,7 @@ async def playbytag(ctx, *search_tags):
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.command(aliases=["redflag", "viewtags"])
+@bot.command(aliases=["redflag", "viewtags", "showtags"])
 async def listtags(ctx):
     """Shows all tags currently in use for uploaded songs."""
     if not file_tags:
