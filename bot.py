@@ -288,8 +288,7 @@ async def listsongs(ctx):
 
         song_list = ""
         for i, song in enumerate(page):
-            tags = ", ".join(file_tags.get(song, []))
-            song_list += line + "\n"
+            song_list += f"{start + i + 1}. {song}\n"
 
         embed = discord.Embed(
             title=f"🎵 Uploaded Songs (Page {page_index + 1}/{total_pages})",
@@ -547,12 +546,11 @@ async def listbytag(ctx, *search_tags):
         start = page_index * per_page
         end = start + per_page
         page = matched_files[start:end]
-        
+
         song_list = ""
         for i, song in enumerate(page):
-            line = f"{start + i + 1}. {song}"
-            song_list += line + "\n"
-        
+            song_list += f"{start + i + 1}. {song}\n"
+
         embed = discord.Embed(
             title=f"🎵 Tagged Songs (Page {page_index + 1}/{total_pages})",
             description=song_list,
