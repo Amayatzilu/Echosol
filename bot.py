@@ -289,9 +289,6 @@ async def listsongs(ctx):
         song_list = ""
         for i, song in enumerate(page):
             tags = ", ".join(file_tags.get(song, []))
-            line = f"{start + i + 1}. {song}"
-            if tags:
-                line += f"\n   └─ Tags: {tags}"
             song_list += line + "\n"
 
         embed = discord.Embed(
@@ -553,10 +550,7 @@ async def listbytag(ctx, *search_tags):
         
         song_list = ""
         for i, song in enumerate(page):
-            tags = ", ".join(file_tags.get(song, []))
             line = f"{start + i + 1}. {song}"
-            if tags:
-                line += f"\n   └─ Tags: {tags}"
             song_list += line + "\n"
         
         embed = discord.Embed(
