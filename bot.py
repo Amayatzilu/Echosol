@@ -65,6 +65,7 @@ song_queue = []
 playlists = {}
 volume_level = 1.0  # Default volume level
 uploaded_files = []  # List to store uploaded files
+file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
 
 @bot.event
 async def on_ready():
@@ -72,7 +73,7 @@ async def on_ready():
     uploaded_files = [f for f in os.listdir(MUSIC_FOLDER) if f.endswith(('.mp3', '.wav'))]
     print(f'Logged in as {bot.user}')
 
-@bot.command(aliases=["playwithme", "connect", "verbinden", "rejoindre"])
+@bot.command(aliases=["playwithme", "connect", "verbinden"])
 async def join(ctx):
     """Joins a voice channel."""
     if ctx.author.voice:
@@ -82,7 +83,7 @@ async def join(ctx):
     else:
         await ctx.send("❌ You need to be in a voice channel first!")
 
-@bot.command(aliases=["goaway", "disconnect", "verlassen", "partir"])
+@bot.command(aliases=["goaway", "disconnect", "verlassen"])
 async def leave(ctx):
     """Leaves the voice channel."""
     if ctx.voice_client:
@@ -187,7 +188,7 @@ async def resume(ctx):
         ctx.voice_client.resume()
         await ctx.send("▶️ Resumed music!")
 
-@bot.command(aliases=["nextplease"])
+@bot.command(aliases=["nextplease", "skippy"])
 async def skip(ctx):
     """Skips the current song."""
     if ctx.voice_client and ctx.voice_client.is_playing():
@@ -270,7 +271,7 @@ import math
 
 @bot.command(aliases=["whatwegot"])
 async def listsongs(ctx):
-    """Lists available uploaded songs with pagination and play option."""
+    """Lists available uploaded songs."""
     if not uploaded_files:
         await ctx.send("❌ No songs found in the music folder!")
         return
@@ -284,7 +285,15 @@ async def listsongs(ctx):
         start = page_index * per_page
         end = start + per_page
         page = uploaded_files[start:end]
-        song_list = "\n".join([f"{start + i + 1}. {song}" for i, song in enumerate(page)])
+
+        song_list = ""
+        for i, song in enumerate(page):
+            tags = ", ".join(file_tags.get(song, []))
+            line = f"{start + i + 1}. {song}"
+            if tags:
+                line += f"\n   └─ Tags: {tags}"
+            song_list += line + "\n"
+
         embed = discord.Embed(
             title=f"🎵 Uploaded Songs (Page {page_index + 1}/{total_pages})",
             description=song_list,
@@ -346,6 +355,29 @@ async def listsongs(ctx):
             if not ctx.voice_client or not ctx.voice_client.is_playing():
                 if not ctx.voice_client and ctx.author.voice:
                     await ctx.author.voice.channel.connect()
+                await play_next(ctx)
+
+        @discord.ui.button(label="🔀 Shuffle This Page", style=discord.ButtonStyle.primary, row=1)
+        async def shuffle_this_page(self, interaction: discord.Interaction, button: Button):
+            start = self.current_page * per_page
+            end = start + per_page
+            page_songs = uploaded_files[start:end]
+            random.shuffle(page_songs)
+            added = []
+            for filename in page_songs:
+                song_path = os.path.join(MUSIC_FOLDER, filename)
+                song_queue.append(song_path)
+                added.append(filename)
+            await interaction.response.send_message(
+                f"🔀 Queued shuffled songs from page {self.current_page + 1}: {len(added)} added.",
+                ephemeral=True
+            )
+            if not ctx.voice_client:
+                if ctx.author.voice:
+                    await ctx.author.voice.channel.connect()
+                else:
+                    return
+            if not ctx.voice_client.is_playing():
                 await play_next(ctx)
 
         @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
@@ -457,6 +489,211 @@ async def on_message(message):
                 uploaded_files.append(attachment.filename)
                 await message.channel.send(f"🎵 File received: **{attachment.filename}**. Use `!listsongs` to see available songs.")
     await bot.process_commands(message)
+
+@bot.command(aliases=["flag", "etikett"])
+async def tag(ctx, *args):
+    """Tags one or more uploaded songs. Usage: !tag <number(s)> <tags...>"""
+    if len(args) < 2:
+        await ctx.send("❌ Usage: `!tag <song number(s)> <tags>` — Example: `!tag 1 2 chill vibe`")
+        return
+
+    try:
+        # Split numbers and tags
+        numbers = [int(arg) for arg in args if arg.isdigit()]
+        tags = [arg.lower() for arg in args if not arg.isdigit()]
+    except ValueError:
+        await ctx.send("❌ Invalid input. Song numbers must be integers.")
+        return
+
+    if not numbers or not tags:
+        await ctx.send("❌ Please provide both song number(s) and at least one tag.")
+        return
+
+    tagged = []
+    for num in numbers:
+        if 1 <= num <= len(uploaded_files):
+            filename = uploaded_files[num - 1]
+            if filename not in file_tags:
+                file_tags[filename] = []
+            for tag in tags:
+                if tag not in file_tags[filename]:
+                    file_tags[filename].append(tag)
+            tagged.append(filename)
+        else:
+            await ctx.send(f"⚠️ Skipped invalid song number: {num}")
+
+    if tagged:
+        await ctx.send(f"🏷️ Tagged songs: {', '.join(tagged)} with: `{', '.join(tags)}`")
+    else:
+        await ctx.send("❌ No valid songs tagged.")
+
+@bot.command(aliases=["tagged", "whiteflag", "beschriftet"])
+async def listbytag(ctx, *search_tags):
+    """Lists songs matching one or more tags. Usage: !listbytag <tag> [tag2 ...]"""
+    if not search_tags:
+        await ctx.send("❌ Please specify at least one tag. Example: `!listbytag chill`")
+        return
+
+    tags_lower = [t.lower() for t in search_tags]
+    matched_files = [f for f in uploaded_files if any(tag in file_tags.get(f, []) for tag in tags_lower)]
+
+    if not matched_files:
+        await ctx.send(f"❌ No songs found with tag(s): `{', '.join(tags_lower)}`")
+        return
+
+    per_page = 10
+    total_pages = math.ceil(len(matched_files) / per_page)
+    range_size = 25
+    current_page = 0
+
+    def get_page_embed(page_index):
+        start = page_index * per_page
+        end = start + per_page
+        page = matched_files[start:end]
+        
+        song_list = ""
+        for i, song in enumerate(page):
+            tags = ", ".join(file_tags.get(song, []))
+            line = f"{start + i + 1}. {song}"
+            if tags:
+                line += f"\n   └─ Tags: {tags}"
+            song_list += line + "\n"
+        
+        embed = discord.Embed(
+            title=f"🎵 Tagged Songs (Page {page_index + 1}/{total_pages})",
+            description=song_list,
+            color=discord.Color.purple()
+        )
+        embed.set_footer(text=f"Tags: {', '.join(tags_lower)}")
+        return embed
+
+    class PaginationView(View):
+        def __init__(self):
+            super().__init__(timeout=60)
+            self.current_page = 0
+            self.page_range_index = 0
+            self.page_options = []
+            self.selector = None
+            self.add_selector()
+
+        def add_selector(self):
+            if self.selector:
+                self.remove_item(self.selector)
+            self.page_options = [
+                discord.SelectOption(label=f"Page {i+1}", value=str(i))
+                for i in range(
+                    self.page_range_index * range_size,
+                    min((self.page_range_index + 1) * range_size, total_pages)
+                )
+            ]
+            self.selector = Select(
+                placeholder="Jump to page...",
+                options=self.page_options
+            )
+
+            async def select_callback(interaction: discord.Interaction):
+                self.current_page = int(self.selector.values[0])
+                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
+
+            self.selector.callback = select_callback
+            self.add_item(self.selector)
+
+        @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
+        async def prev_page(self, interaction: discord.Interaction, button: Button):
+            if self.current_page > 0:
+                self.current_page -= 1
+                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
+
+        @discord.ui.button(label="🔀 Shuffle This Page", style=discord.ButtonStyle.green)
+        async def shuffle_page(self, interaction: discord.Interaction, button: Button):
+            start = self.current_page * per_page
+            end = start + per_page
+            page = matched_files[start:end]
+            random.shuffle(page)
+            matched_files[start:end] = page
+            await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
+
+        @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
+        async def next_page(self, interaction: discord.Interaction, button: Button):
+            if self.current_page < total_pages - 1:
+                self.current_page += 1
+                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
+
+        @discord.ui.button(label="🔁 Prev Range", style=discord.ButtonStyle.secondary, row=1)
+        async def prev_range(self, interaction: discord.Interaction, button: Button):
+            if self.page_range_index > 0:
+                self.page_range_index -= 1
+                self.add_selector()
+                await interaction.response.edit_message(view=self)
+
+        @discord.ui.button(label="🔁 Next Range", style=discord.ButtonStyle.secondary, row=1)
+        async def next_range(self, interaction: discord.Interaction, button: Button):
+            max_index = (total_pages - 1) // range_size
+            if self.page_range_index < max_index:
+                self.page_range_index += 1
+                self.add_selector()
+                await interaction.response.edit_message(view=self)
+
+    view = PaginationView()
+    await ctx.send(embed=get_page_embed(current_page), view=view)
+
+@bot.command(aliases=["tagplay", "greenflag", "spielwahl"])
+async def playbytag(ctx, *search_tags):
+    """Plays all uploaded songs that match one or more tags. Usage: !playbytag chill vibe"""
+    if not search_tags:
+        await ctx.send("❌ Please provide at least one tag. Example: `!playbytag chill`")
+        return
+
+    tags_lower = [t.lower() for t in search_tags]
+    matched = [f for f in uploaded_files if any(tag in file_tags.get(f, []) for tag in tags_lower)]
+
+    if not matched:
+        await ctx.send(f"❌ No songs found with tag(s): `{', '.join(tags_lower)}`")
+        return
+
+    # Add matched songs to the queue
+    for filename in matched:
+        song_path = os.path.join(MUSIC_FOLDER, filename)
+        song_queue.append(song_path)
+
+    await ctx.send(f"🎶 Added {len(matched)} songs with tag(s) `{', '.join(tags_lower)}` to the queue!")
+
+    # Auto-play if nothing is currently playing
+    if not ctx.voice_client:
+        if ctx.author.voice:
+            await ctx.author.voice.channel.connect()
+        else:
+            await ctx.send("❌ You need to be in a voice channel to play music!")
+            return
+
+    if not ctx.voice_client.is_playing():
+        await play_next(ctx)
+
+@bot.command(aliases=["redflag", "viewtags"])
+async def listtags(ctx):
+    """Shows all tags currently in use for uploaded songs."""
+    if not file_tags:
+        await ctx.send("❌ No tags have been added yet.")
+        return
+
+    # Collect all unique tags
+    unique_tags = set()
+    for tags in file_tags.values():
+        unique_tags.update(tags)
+
+    if not unique_tags:
+        await ctx.send("❌ No tags found.")
+        return
+
+    sorted_tags = sorted(unique_tags)
+    tag_text = ", ".join(sorted_tags)
+
+    embed = discord.Embed(
+        title="🏷️ Current Tags in Use",
+        description=tag_text,
+        color=discord.Color.blurple()
+    )
+    await ctx.send(embed=embed)
 
 @bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
