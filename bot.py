@@ -546,7 +546,7 @@ async def listbytag(ctx, *search_tags):
         start = page_index * per_page
         end = start + per_page
         page = matched_files[start:end]
-
+        
         song_list = ""
         for i, song in enumerate(page):
             song_list += f"{start + i + 1}. {song}\n"
