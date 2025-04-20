@@ -399,8 +399,53 @@ async def listsongs(ctx):
     view = PaginationView()
     await ctx.send(embed=get_page_embed(), view=view)
 
-@bot.command(aliases=["pp", "seite", "page"])
-async def playpage(ctx, *pages):
+@bot.command(aliases=["everything", "alle", "expulso", "mruniverse"])
+async def playalluploads(ctx):
+    """Adds all uploaded songs to the queue and starts playing."""
+    if not uploaded_files:
+        await ctx.send("❌ No uploaded songs available.")
+        return
+
+    for filename in uploaded_files:
+        song_path = os.path.join(MUSIC_FOLDER, filename)
+        song_queue.append(song_path)
+
+    await ctx.send(f"🎶 Queued all {len(uploaded_files)} uploaded songs!")
+
+    if not ctx.voice_client:
+        if ctx.author.voice:
+            await ctx.author.voice.channel.connect()
+        else:
+            await ctx.send("❌ You need to be in a voice channel to play music!")
+            return
+
+    if not ctx.voice_client.is_playing():
+        await play_next(ctx)
+
+@bot.command(aliases=["deleteit", "deleteupload", "ru"])
+async def removeupload(ctx, number: int):
+    """Removes a specific uploaded song by its number (from !listsongs)."""
+    if number < 1 or number > len(uploaded_files):
+        await ctx.send(f"❌ Invalid number. Use `!listsongs` to see available songs.")
+        return
+
+    filename = uploaded_files[number - 1]
+    file_path = os.path.join(MUSIC_FOLDER, filename)
+
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            uploaded_files.remove(filename)
+            if filename in file_tags:
+                del file_tags[filename]  # Also remove associated tags if present
+            await ctx.send(f"🗑️ Removed **{filename}** from uploads.")
+        else:
+            await ctx.send("⚠️ File not found on disk.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to delete file: {e}")
+
+@bot.command(aliases=["pp", "seite", "page", "playpage"])
+async def playbypage(ctx, *pages):
     """Plays one or more pages of uploaded songs."""
     per_page = 10
     total_pages = (len(uploaded_files) + per_page - 1) // per_page
@@ -705,14 +750,17 @@ async def listtags(ctx):
     )
     await ctx.send(embed=embed)
 
-@bot.command(aliases=["shutup", "nomore", "stoppen"])
+@@bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
-    """Stops playback."""
+    """Stops playback and clears the queue."""
+    global song_queue
+    song_queue = []  # Clear the queue
+
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
-        await ctx.send("⏹ Music stopped!")
+        await ctx.send("⏹ Music stopped and queue cleared!")
     else:
-        await ctx.send("❌ No music is currently playing.")
+        await ctx.send("⏹ Queue cleared, but no music was playing.")
 
 @bot.command(aliases=["cp"])
 async def createplaylist(ctx, playlist_name: str):
