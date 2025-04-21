@@ -655,44 +655,38 @@ async def playbypage(ctx, *pages):
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.command(aliases=["pp", "seite", "page", "playpage"])
-async def playbypage(ctx, *pages):
-    """Plays one or more pages of uploaded songs."""
-    per_page = 10
-    total_pages = (len(uploaded_files) + per_page - 1) // per_page
-    added = []
+@bot.command(aliases=["number", "playnumber", "n"])
+async def playbynumber(ctx, *numbers):
+    """Plays one or multiple uploaded songs using their numbers."""
+    added_songs = []
 
-    if not pages:
-        await ctx.send("🌥️ Please share the page numbers you'd like to hear from! Example: `!page 1 2 3`")
+    if not numbers:
+        await ctx.send("❌ Please provide one or more song numbers. Example: `!playbynumber 1 2 3`")
         return
 
-    for page_str in pages:
+    for num in numbers:
         try:
-            page = int(page_str)
-            if page < 1 or page > total_pages:
-                await ctx.send(f"⚠️ Page {page} is outside the sunlit range. Skipping with kindness.")
-                continue
-
-            start = (page - 1) * per_page
-            end = start + per_page
-            for filename in uploaded_files[start:end]:
-                song_path = os.path.join(MUSIC_FOLDER, filename)
+            num = int(num.strip(','))  # Clean and convert to int
+            if 1 <= num <= len(uploaded_files):
+                song_path = os.path.join(MUSIC_FOLDER, uploaded_files[num - 1])
                 song_queue.append(song_path)
-                added.append(filename)
+                added_songs.append(uploaded_files[num - 1])
+            else:
+                await ctx.send(f"⚠️ Song number `{num}` is out of bounds. Use `!listsongs` to see available tracks.")
         except ValueError:
-            await ctx.send(f"⚠️ `{page_str}` doesn't feel like a number I can dance to. Skipping.")
+            await ctx.send(f"❌ `{num}` isn't a valid number. Use spaces or commas to separate multiple.")
 
-    if not added:
-        await ctx.send("🌧️ Nothing was added to the queue this time. Try another page?")
+    if not added_songs:
+        await ctx.send("🌧️ No songs were added to the queue... let's try again with some sunshine.")
         return
 
-    await ctx.send(f"🎵 Filled the queue with {len(added)} glowing tunes from page(s) {', '.join(pages)} ✨")
+    await ctx.send(f"🌟 Added to the queue: **{', '.join(added_songs)}** — let the light flow!")
 
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
         else:
-            await ctx.send("❌ You need to be in a voice channel to invite the light of music in.")
+            await ctx.send("❌ You need to be in a voice channel to hear the glow of music!")
             return
 
     if not ctx.voice_client.is_playing():
