@@ -66,19 +66,20 @@ playlists = {}
 volume_level = 1.0  # Default volume level
 uploaded_files = []  # List to store uploaded files
 file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
+pending_tag_uploads = {}
 
 @bot.event
 async def on_message(message):
-    global uploaded_files, pending_tag_uploads
+    global uploaded_files, file_tags, pending_tag_uploads
 
-    # Allow commands to be processed
+    # Allow bot to continue processing commands
     await bot.process_commands(message)
 
-    # Ignore bot's own messages
+    # Ignore messages from bots
     if message.author.bot:
         return
 
-    # Handle file uploads
+    # If attachments are being uploaded
     if message.attachments:
         new_files = []
         for attachment in message.attachments:
@@ -92,7 +93,7 @@ async def on_message(message):
             pending_tag_uploads[message.author.id] = new_files
             await message.channel.send(
                 f"🎵 Received {len(new_files)} file(s): {', '.join(new_files)}.\n"
-                f"Reply with tags (separated by spaces or commas) for all of them."
+                f"🔖 Please reply to this message with tags (separated by spaces or commas)!"
             )
         return
 
@@ -100,7 +101,7 @@ async def on_message(message):
     if message.reference and message.author.id in pending_tag_uploads:
         tags = [t.strip().lower() for t in message.content.replace(",", " ").split()]
         if not tags:
-            await message.channel.send("❌ No tags provided. Try again.")
+            await message.channel.send("❌ No tags provided. Please try again.")
             return
 
         for filename in pending_tag_uploads[message.author.id]:
@@ -108,7 +109,10 @@ async def on_message(message):
                 file_tags[filename] = []
             file_tags[filename].extend(tags)
 
-        await message.channel.send(f"🏷 Tagged file(s): {', '.join(tags)}")
+        await message.channel.send(
+            f"🏷 Tagged **{len(pending_tag_uploads[message.author.id])}** file(s) with: `{', '.join(tags)}`"
+        )
+
         del pending_tag_uploads[message.author.id]
 
 @bot.command(aliases=["playwithme", "connect", "verbinden"])
