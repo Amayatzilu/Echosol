@@ -33,54 +33,58 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Di
 @bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
     """Displays all main commands, grouped by category."""
-    embed = discord.Embed(title="🎶 Echosol Help", color=discord.Color.blurple())
-    embed.set_footer(text="Use commands as shown. Aliases are supported for most.")
+    embed = discord.Embed(
+        title="✨ Welcome to Echosol, your heart's musical companion 💖",
+        description="Let the rhythm guide your soul and the light lead your playlist 🌈🎵",
+        color=discord.Color.from_str("#ffe680")
+    )
+    embed.set_footer(text="🌻 Shine bright, share the light – your musical journey starts here.")
 
     embed.add_field(
-        name="🎵 Playback",
+        name="🌞 Playback – Light up the room!",
         value=(
-            "**!play** – Plays a song from YouTube or adds it to the queue.\n"
-            "**!pause** – Pauses the current song.\n"
-            "**!resume** – Resumes paused music.\n"
-            "**!skip** – Skips the current song.\n"
-            "**!stop** – Stops playback and clears the queue.\n"
-            "**!volume** – Sets the bot's volume.\n"
-            "**!shuffle** – Shuffles the current music queue.\n"
-            "**!queue** – Displays the current queue with pagination and shuffle button."
+            "🎶 **!play** – Bring in a melody from YouTube or add it to the mix.\n"
+            "⏸️ **!pause** – Gently pause your sunshine soundtrack.\n"
+            "▶️ **!resume** – Pick up right where the glow left off.\n"
+            "⏭️ **!skip** – Skip forward with radiant rhythm.\n"
+            "⏹️ **!stop** – Bring the music to a gentle halt & clear the queue.\n"
+            "🔊 **!volume** – Adjust the warmth of the sound.\n"
+            "🔀 **!shuffle** – Let the winds of chance guide your queue.\n"
+            "📜 **!queue** – Peek at the journey ahead with a scrollable playlist."
         ),
         inline=False
     )
 
     embed.add_field(
-        name="📁 Uploads & Playback",
+        name="📂 Uploads & Playback – Curate your cozy corner",
         value=(
-            "**!listsongs** – Lists available uploaded songs with optional tag filter, pagination, and actions.\n"
-            "**!playbynumber** – Plays one or multiple uploaded songs using their numbers.\n"
-            "**!playbypage** – Plays one or more pages of uploaded songs.\n"
-            "**!playalluploads** – Adds all uploaded songs to the queue in shuffled order.\n"
-            "**!removeupload** – Removes a specific uploaded song by its number (from !listsongs).\n"
-            "**!clearuploads** – Deletes all uploaded files to free space."
+            "📁 **!listsongs** – Explore your uploaded treasures with filters, tags, and more.\n"
+            "🔢 **!playbynumber** – Play specific songs by their number.\n"
+            "📄 **!playbypage** – Queue entire pages of uploads in one go.\n"
+            "🌎 **!playalluploads** – Let every note shine by queuing them all (shuffled).\n"
+            "❌ **!removeupload** – Gently retire a song from your collection.\n"
+            "🧹 **!clearuploads** – Clear the canvas for new creations."
         ),
         inline=False
     )
 
     embed.add_field(
-        name="🏷️ Tagging System",
+        name="🏷️ Tagging System – Organize with heart",
         value=(
-            "**!tag** – Tags one or more uploaded songs. Usage: `!tag <number(s)> <tags...>`\n"
-            "**!playbytag** – Plays all uploaded songs that match one or more tags. Usage: `!playbytag chill vibe`\n"
-            "**!listtags** – Shows all tags currently in use for uploaded songs."
+            "🔖 **!tag** – Add tags to your uploads like 'chill', 'sunset', or 'vibe'.\n"
+            "💚 **!playbytag** – Queue everything with a matching heartbeat.\n"
+            "📑 **!listtags** – See the beautiful constellation of tags you've created."
         ),
         inline=False
     )
 
     embed.add_field(
-        name="🛠️ Utility",
+        name="🛠️ Utility – Stay connected with ease",
         value=(
-            "**!join** – Joins a voice channel.\n"
-            "**!leave** – Leaves the voice channel.\n"
-            "**!clearqueue** – Clears the music queue.\n"
-            "**!help** – Displays all main commands."
+            "🔗 **!join** – Invite Echosol to your voice channel with a smile.\n"
+            "🚪 **!leave** – Let the bot float back into the light.\n"
+            "🧺 **!clearqueue** – Empty the queue and start fresh.\n"
+            "💡 **!help** – You're never alone – revisit this guide anytime."
         ),
         inline=False
     )
@@ -120,14 +124,14 @@ pending_tag_uploads = {}
 async def on_message(message):
     global uploaded_files, file_tags, pending_tag_uploads
 
-    # Allow bot to continue processing commands
+    # Let the sunshine flow through commands 🌤
     await bot.process_commands(message)
 
-    # Ignore messages from bots
+    # Skip if the message is from another bot
     if message.author.bot:
         return
 
-    # If attachments are being uploaded
+    # Handle song uploads with warmth 🎶
     if message.attachments:
         new_files = []
         for attachment in message.attachments:
@@ -140,16 +144,17 @@ async def on_message(message):
         if new_files:
             pending_tag_uploads[message.author.id] = new_files
             await message.channel.send(
-                f"🎵 Received {len(new_files)} file(s): {', '.join(new_files)}.\n"
-                f"🔖 Please reply to this message with tags (separated by spaces or commas)!"
+                f"🌟 Thank you for sharing your musical light! 🌈\n"
+                f"🎵 Uploaded: **{', '.join(new_files)}**\n"
+                f"💫 Please reply to this message with tags (like `chill`, `sunset`, `epic`). Separate with spaces or commas!"
             )
         return
 
-    # Handle replies with tags
+    # Handle tag replies with gentle guidance 💖
     if message.reference and message.author.id in pending_tag_uploads:
         tags = [t.strip().lower() for t in message.content.replace(",", " ").split()]
         if not tags:
-            await message.channel.send("❌ No tags provided. Please try again.")
+            await message.channel.send("⚠️ Oops! No tags found. Try again with some beautiful labels 🌻")
             return
 
         for filename in pending_tag_uploads[message.author.id]:
@@ -158,7 +163,8 @@ async def on_message(message):
             file_tags[filename].extend(tags)
 
         await message.channel.send(
-            f"🏷 Tagged **{len(pending_tag_uploads[message.author.id])}** file(s) with: `{', '.join(tags)}`"
+            f"🏷️ Your sound sparkles have been tagged! ✨\n"
+            f"💖 Tagged **{len(pending_tag_uploads[message.author.id])}** file(s) with: `{', '.join(tags)}`"
         )
 
         del pending_tag_uploads[message.author.id]
@@ -169,9 +175,9 @@ async def join(ctx):
     if ctx.author.voice:
         channel = ctx.author.voice.channel
         await channel.connect()
-        await ctx.send("🎧 Joined the voice channel!")
+        await ctx.send("💫 Echosol has joined you in song and spirit!")
     else:
-        await ctx.send("❌ You need to be in a voice channel first!")
+        await ctx.send("❌ Echosol cannot find your spirit... Join a voice channel first!")
 
 @bot.command(aliases=["goaway", "disconnect", "verlassen"])
 async def leave(ctx):
@@ -184,16 +190,17 @@ async def leave(ctx):
 
 @bot.command(aliases=["p", "gimme", "spielen"])
 async def play(ctx, url: str = None):
-    """Plays a song from YouTube or adds it to the queue."""
+    """Plays a song from YouTube or adds it to the queue with warmth 🌞"""
     if not url:
-        await ctx.send("❌ Please provide a YouTube link!")
+        await ctx.send("☀️ Please share a YouTube link so we can light up the vibes!")
         return
 
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
+            await ctx.send("🎧 Joined your voice channel, ready to share the light!")
         else:
-            await ctx.send("❌ You need to be in a voice channel to play music!")
+            await ctx.send("💭 Hop into a voice channel and summon me with sunshine!")
             return
 
     try:
@@ -210,13 +217,13 @@ async def play(ctx, url: str = None):
                             entry_info = entry
                         song_queue.append((entry_info['webpage_url'], entry_info['title']))
                         added += 1
-                await ctx.send(f"🎵 Added {added} songs from the playlist to the queue!")
+                await ctx.send(f"📀 Added **{added} radiant tunes** from the playlist to the journey!")
             else:  # Single video
                 song_queue.append((info['webpage_url'], info['title']))
-                await ctx.send(f"🎵 Added to queue: **{info['title']}**")
+                await ctx.send(f"🌻 **{info['title']}** has been added to the soundscape!")
 
     except Exception as e:
-        await ctx.send(f"⚠️ Error adding song: {e}")
+        await ctx.send(f"⚠️ A cloud blocked the song: `{e}`")
         return
 
     if not ctx.voice_client.is_playing():
@@ -289,7 +296,11 @@ async def play_next(ctx):
             return bar
 
         # Display initial Now Playing embed
-        embed = discord.Embed(title="🎵 Now Playing", description=f"**{song_title}**", color=discord.Color.from_str("#f9c6eb"))
+        embed = discord.Embed(
+    title="🌞 Echosol Radiance",
+    description=f"✨ **{song_title}** is glowing through your speakers!",
+    color=discord.Color.from_str("#ffc0cb")  # Soft pink for warmth
+)
         if duration:
             embed.add_field(name="Progress", value=f"{heartbeats_bar(0, duration)} `0:00`", inline=False)
         message = await ctx.send(embed=embed)
@@ -310,56 +321,56 @@ async def play_next(ctx):
         else:
             await message.edit(content=f"▶️ Now playing: **{song_title}**")
     else:
-        await ctx.send("✅ Queue is empty!")
+        await ctx.send("🌈 The musical journey is paused, but the stage awaits. ✨ Use `!play` when you're ready to glow again!")
 
 @bot.command(aliases=["mixitup", "mischen", "shuff"])
 async def shuffle(ctx):
-    """Shuffles the current music queue."""
+    """Shuffles the current music queue with joy 🌻"""
     if len(song_queue) > 1:
         random.shuffle(song_queue)
-        await ctx.send("🔀 The queue has been shuffled!")
+        await ctx.send("🔀 The playlist has been spun like sunrays through stained glass. 🌞")
     else:
-        await ctx.send("❌ Not enough songs in the queue to shuffle.")
+        await ctx.send("🌱 Not quite enough tunes to dance with. Add more and try again!")
 
 @bot.command(aliases=["hush"])
 async def pause(ctx):
-    """Pauses the current song."""
+    """Pauses the current song with a gentle hush 🌙"""
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.pause()
-        await ctx.send("⏸ Music paused!")
+        await ctx.send("💤 A gentle pause... the music takes a breath beneath the stars.")
 
 @bot.command(aliases=["youmayspeak"])
 async def resume(ctx):
-    """Resumes paused music."""
+    """Resumes paused music with heart 💖"""
     if ctx.voice_client and ctx.voice_client.is_paused():
         ctx.voice_client.resume()
-        await ctx.send("▶️ Resumed music!")
+        await ctx.send("💓 The melody awakens — your rhythm pulses with light once more!")
 
 @bot.command(aliases=["nextplease", "skippy"])
 async def skip(ctx):
-    """Skips the current song."""
+    """Skips the current song with a gleam 💫"""
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
         await play_next(ctx)
-        await ctx.send("⏭ Skipped to the next song!")
+        await ctx.send("⏭ Onward to the next harmony in your journey of sound 🌟")
 
 @bot.command(aliases=["turnitup", "tooloud", "v"])
 async def volume(ctx, volume: int):
-    """Sets the bot's volume."""
+    """Sets the bot's volume like turning up the sun ☀️"""
     global volume_level
     if 1 <= volume <= 100:
         volume_level = volume / 100.0
         if ctx.voice_client and ctx.voice_client.source:
             ctx.voice_client.source.volume = volume_level
-        await ctx.send(f"🔊 Volume set to {volume}%")
+        await ctx.send(f"🔊 Volume tuned to **{volume}%** — let your light shine brighter!")
     else:
-        await ctx.send("❌ Volume must be between 1 and 100.")
+        await ctx.send("🚫 Volume must be between **1 and 100** — just like sunshine, too much can burn! 🌞")
 
 @bot.command(aliases=["whatsnext", "q"])
 async def queue(ctx):
     """Displays the current queue with pagination and shuffle button."""
     if not song_queue:
-        await ctx.send("❌ The queue is empty.")
+        await ctx.send("🌥️ The skies are quiet — the queue is empty.")
         return
 
     class QueuePages(View):
@@ -373,14 +384,20 @@ async def queue(ctx):
             end = start + self.items_per_page
             page_items = song_queue[start:end]
             if not page_items:
-                await interaction.response.send_message("❌ No items on this page.", ephemeral=True)
+                await interaction.response.send_message("🚫 No songs on this page.", ephemeral=True)
                 return
 
             queue_display = '\n'.join([
                 f"{i+1}. {os.path.basename(song[1]) if isinstance(song, tuple) else os.path.basename(song)}"
                 for i, song in enumerate(page_items, start=start)
             ])
-            await interaction.response.edit_message(content=f"📜 **Queue Page {self.page + 1}:**\n```{queue_display}```", view=self)
+
+            embed = discord.Embed(
+                title=f"📜 Echosol Queue - Page {self.page + 1}",
+                description=f"☀️ Songs lined up to warm your soul:\n```{queue_display}```",
+                color=discord.Color.from_str("#ffd580")  # Soft gold
+            )
+            await interaction.response.edit_message(embed=embed, view=self)
 
         @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
         async def prev_page(self, interaction: discord.Interaction, button: Button):
@@ -397,21 +414,13 @@ async def queue(ctx):
 
         @discord.ui.button(label="🔀 Shuffle", style=discord.ButtonStyle.primary)
         async def shuffle_button(self, interaction: discord.Interaction, button: Button):
-            import random
             random.shuffle(song_queue)
             self.page = 0
-            await interaction.response.send_message("🔀 Queue shuffled!", ephemeral=True)
+            await interaction.response.send_message("🎶 Your musical sunbeams have been shuffled!", ephemeral=True)
             await self.send_page(interaction)
 
     view = QueuePages()
-    start = 0
-    end = start + view.items_per_page
-    page_items = song_queue[start:end]
-    queue_display = '\n'.join([
-        f"{i+1}. {os.path.basename(song[1]) if isinstance(song, tuple) else os.path.basename(song)}"
-        for i, song in enumerate(page_items, start=start)
-    ])
-    await ctx.send(f"📜 **Queue Page 1:**\n```{queue_display}```", view=view)
+    await view.send_page(await ctx.send("☀️ Loading your radiant playlist..."))
 
 from discord.ui import View, Button, Select
 import math
@@ -420,14 +429,13 @@ import math
 async def listsongs(ctx):
     """Lists available uploaded songs with optional tag filter, pagination, and actions."""
     if not uploaded_files:
-        await ctx.send("❌ No songs found in the music folder!")
+        await ctx.send("🌥️ No sunshine yet! Upload a song to brighten the playlist.")
         return
 
     per_page = 10
     range_size = 25
     all_tags = sorted(set(tag for tags in file_tags.values() for tag in tags))
 
-    # Holds the filtered song list and view state
     class State:
         def __init__(self):
             self.current_page = 0
@@ -448,22 +456,24 @@ async def listsongs(ctx):
             song_list += line + "\n"
 
         total_pages = max(1, math.ceil(len(state.filtered_files) / per_page))
-        title = f"🎵 Uploaded Songs"
+        title = "🌼 Radiant Uploads"
         if state.selected_tag:
-            title += f" - Tag: {state.selected_tag}"
+            title += f" – Tag: {state.selected_tag}"
+
         embed = discord.Embed(
             title=title + f" (Page {state.current_page + 1}/{total_pages})",
-            description=song_list or "No songs found on this page.",
-            color=discord.Color.purple()
+            description=song_list or "☁️ This page is a little quiet...",
+            color=discord.Color.from_str("#f9c6eb")  # Soft pink heartlight
         )
+        embed.set_footer(text="✨ Let your playlist bloom. Use !playnumber or the buttons below.")
         return embed
 
     class TagSelector(Select):
         def __init__(self):
-            options = [discord.SelectOption(label="All", value="all")] + [
+            options = [discord.SelectOption(label="🌈 All Songs", value="all")] + [
                 discord.SelectOption(label=tag, value=tag) for tag in all_tags
             ]
-            super().__init__(placeholder="Filter by tag...", options=options)
+            super().__init__(placeholder="🎨 Filter by tag...", options=options)
 
         async def callback(self, interaction: discord.Interaction):
             choice = self.values[0]
@@ -497,8 +507,10 @@ async def listsongs(ctx):
                 song_path = os.path.join(MUSIC_FOLDER, filename)
                 song_queue.append(song_path)
                 added.append(filename)
-            await interaction.response.send_message(f"🎶 Queued {len(added)} songs from this page!", ephemeral=True)
-
+            await interaction.response.send_message(
+                f"💖 You queued {len(added)} joyful tunes from this page!",
+                ephemeral=True
+            )
             if not ctx.voice_client or not ctx.voice_client.is_playing():
                 if not ctx.voice_client and ctx.author.voice:
                     await ctx.author.voice.channel.connect()
@@ -515,8 +527,10 @@ async def listsongs(ctx):
                 song_path = os.path.join(MUSIC_FOLDER, filename)
                 song_queue.append(song_path)
                 added.append(filename)
-            await interaction.response.send_message(f"🔀 Queued {len(added)} shuffled songs from this page.", ephemeral=True)
-
+            await interaction.response.send_message(
+                f"🌟 Shuffled and queued {len(added)} sparkling songs!",
+                ephemeral=True
+            )
             if not ctx.voice_client or not ctx.voice_client.is_playing():
                 if not ctx.voice_client and ctx.author.voice:
                     await ctx.author.voice.channel.connect()
@@ -550,7 +564,7 @@ async def listsongs(ctx):
 async def playalluploads(ctx):
     """Adds all uploaded songs to the queue in shuffled order."""
     if not uploaded_files:
-        await ctx.send("❌ No uploaded songs found.")
+        await ctx.send("🌥️ No musical sunshine found! Upload a song to brighten the day.")
         return
 
     # Shuffle a copy of the uploaded file list
@@ -562,14 +576,15 @@ async def playalluploads(ctx):
         song_path = os.path.join(MUSIC_FOLDER, filename)
         song_queue.append(song_path)
 
-    await ctx.send(f"🎶 Shuffled and queued **{len(shuffled_songs)}** uploaded songs!")
+    await ctx.send(f"🌈 A radiant mix of **{len(shuffled_songs)}** uploaded songs has been queued! Let the light flow 🎶")
 
     # Connect and start playing
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
+            await ctx.send("🌟 Echosol has joined your voice channel to begin the musical journey!")
         else:
-            await ctx.send("❌ You need to be in a voice channel to play music!")
+            await ctx.send("❌ You need to be in a voice channel to share the light!")
             return
 
     if not ctx.voice_client.is_playing():
@@ -579,7 +594,7 @@ async def playalluploads(ctx):
 async def removeupload(ctx, number: int):
     """Removes a specific uploaded song by its number (from !listsongs)."""
     if number < 1 or number > len(uploaded_files):
-        await ctx.send(f"❌ Invalid number. Use `!listsongs` to see available songs.")
+        await ctx.send("🌧️ That number doesn’t shine. Use `!listsongs` to find your musical stars.")
         return
 
     filename = uploaded_files[number - 1]
@@ -591,11 +606,11 @@ async def removeupload(ctx, number: int):
             uploaded_files.remove(filename)
             if filename in file_tags:
                 del file_tags[filename]  # Also remove associated tags if present
-            await ctx.send(f"🗑️ Removed **{filename}** from uploads.")
+            await ctx.send(f"💨 **{filename}** has floated away on a gentle breeze. One less note in the skies.")
         else:
-            await ctx.send("⚠️ File not found on disk.")
+            await ctx.send("⚠️ That file seems to have already drifted into the clouds...")
     except Exception as e:
-        await ctx.send(f"❌ Failed to delete file: {e}")
+        await ctx.send(f"💔 Oh no! I couldn't let it go: `{e}`")
 
 @bot.command(aliases=["pp", "seite", "page", "playpage"])
 async def playbypage(ctx, *pages):
@@ -605,14 +620,14 @@ async def playbypage(ctx, *pages):
     added = []
 
     if not pages:
-        await ctx.send("❌ Please provide one or more page numbers (e.g. `!page 1 2 3`).")
+        await ctx.send("🌻 Please share one or more page numbers to bring the sunshine! (e.g. `!page 1 2 3`)")
         return
 
     for page_str in pages:
         try:
             page = int(page_str)
             if page < 1 or page > total_pages:
-                await ctx.send(f"❌ Page {page} is out of range. Skipping.")
+                await ctx.send(f"⚠️ Page {page} is out of range and couldn’t catch the breeze. Skipping.")
                 continue
 
             start = (page - 1) * per_page
@@ -622,59 +637,72 @@ async def playbypage(ctx, *pages):
                 song_queue.append(song_path)
                 added.append(filename)
         except ValueError:
-            await ctx.send(f"❌ `{page_str}` is not a valid number. Skipping.")
+            await ctx.send(f"🌥️ `{page_str}` isn’t a valid number. Let’s float past it.")
 
     if not added:
-        await ctx.send("❌ No songs were added to the queue.")
+        await ctx.send("❌ No songs danced into the queue. Try again with valid pages.")
         return
 
-    await ctx.send(f"🎶 Added {len(added)} songs from page(s) {', '.join(pages)} to the queue!")
+    await ctx.send(f"🎶✨ Added **{len(added)}** radiant tracks from page(s) {', '.join(pages)} to your musical journey!")
 
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
         else:
-            await ctx.send("❌ You need to be in a voice channel to play music!")
+            await ctx.send("🌙 You need to be in a voice channel to let the melodies flow.")
             return
 
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.command(aliases=["number", "playnumber", "n"])
-async def playbynumber(ctx, *numbers):
-    """Plays one or multiple uploaded songs using their numbers."""
-    added_songs = []
-    for num in numbers:
+@bot.command(aliases=["pp", "seite", "page", "playpage"])
+async def playbypage(ctx, *pages):
+    """Plays one or more pages of uploaded songs."""
+    per_page = 10
+    total_pages = (len(uploaded_files) + per_page - 1) // per_page
+    added = []
+
+    if not pages:
+        await ctx.send("🌥️ Please share the page numbers you'd like to hear from! Example: `!page 1 2 3`")
+        return
+
+    for page_str in pages:
         try:
-            num = int(num.strip(','))  # Remove commas and convert to integer
-            if 1 <= num <= len(uploaded_files):
-                song_path = os.path.join(MUSIC_FOLDER, uploaded_files[num - 1])
+            page = int(page_str)
+            if page < 1 or page > total_pages:
+                await ctx.send(f"⚠️ Page {page} is outside the sunlit range. Skipping with kindness.")
+                continue
+
+            start = (page - 1) * per_page
+            end = start + per_page
+            for filename in uploaded_files[start:end]:
+                song_path = os.path.join(MUSIC_FOLDER, filename)
                 song_queue.append(song_path)
-                added_songs.append(uploaded_files[num - 1])
-            else:
-                await ctx.send(f"❌ Invalid song number: {num}. Use `!listsongs` to see available songs.")
+                added.append(filename)
         except ValueError:
-            await ctx.send(f"❌ Invalid input: {num}. Use numbers separated by spaces or commas.")
+            await ctx.send(f"⚠️ `{page_str}` doesn't feel like a number I can dance to. Skipping.")
+
+    if not added:
+        await ctx.send("🌧️ Nothing was added to the queue this time. Try another page?")
+        return
+
+    await ctx.send(f"🎵 Filled the queue with {len(added)} glowing tunes from page(s) {', '.join(pages)} ✨")
 
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
         else:
-            await ctx.send("❌ You need to be in a voice channel to play music!")
+            await ctx.send("❌ You need to be in a voice channel to invite the light of music in.")
             return
-    
-    if added_songs:
-        await ctx.send(f"🎵 Added to queue: {', '.join(added_songs)}")
-    
-    # Auto-play if nothing is currently playing
-    if not ctx.voice_client or not ctx.voice_client.is_playing():
+
+    if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
 @bot.command(aliases=["flag", "etikett"])
 async def tag(ctx, *args):
     """Tags one or more uploaded songs. Usage: !tag <number(s)> <tags...>"""
     if len(args) < 2:
-        await ctx.send("❌ Usage: `!tag <song number(s)> <tags>` — Example: `!tag 1 2 chill vibe`")
+        await ctx.send("🌻 To blossom your tunes with tags, use: `!tag <song number(s)> <tags>`\nExample: `!tag 1 2 chill vibe`")
         return
 
     try:
@@ -682,11 +710,11 @@ async def tag(ctx, *args):
         numbers = [int(arg) for arg in args if arg.isdigit()]
         tags = [arg.lower() for arg in args if not arg.isdigit()]
     except ValueError:
-        await ctx.send("❌ Invalid input. Song numbers must be integers.")
+        await ctx.send("⚠️ Hmm, some of those song numbers didn’t look quite right. Please only use numbers for the songs.")
         return
 
     if not numbers or not tags:
-        await ctx.send("❌ Please provide both song number(s) and at least one tag.")
+        await ctx.send("🌸 Please give me both the song numbers *and* the beautiful tags you'd like to add.")
         return
 
     tagged = []
@@ -700,25 +728,25 @@ async def tag(ctx, *args):
                     file_tags[filename].append(tag)
             tagged.append(filename)
         else:
-            await ctx.send(f"⚠️ Skipped invalid song number: {num}")
+            await ctx.send(f"🌥️ Skipped song number {num} – it's not in our garden of uploads!")
 
     if tagged:
-        await ctx.send(f"🏷️ Tagged songs: {', '.join(tagged)} with: `{', '.join(tags)}`")
+        await ctx.send(f"🏷️✨ Songs kissed by sunshine: {', '.join(tagged)}\nWith glowing tags: `{', '.join(tags)}`")
     else:
-        await ctx.send("❌ No valid songs tagged.")
+        await ctx.send("☁️ No songs were tagged this time. Try again with different numbers or tags!")
 
 @bot.command(aliases=["tagplay", "greenflag"])
 async def playbytag(ctx, *search_tags):
     """Plays all uploaded songs that match one or more tags. Usage: !playbytag chill vibe"""
     if not search_tags:
-        await ctx.send("❌ Please provide at least one tag. Example: `!playbytag chill`")
+        await ctx.send("🌿 Please share at least one tag to guide the vibe. Example: `!playbytag chill`")
         return
 
     tags_lower = [t.lower() for t in search_tags]
     matched = [f for f in uploaded_files if any(tag in file_tags.get(f, []) for tag in tags_lower)]
 
     if not matched:
-        await ctx.send(f"❌ No songs found with tag(s): `{', '.join(tags_lower)}`")
+        await ctx.send(f"☁️ No songs found glowing with tag(s): `{', '.join(tags_lower)}`. Try another gentle whisper?")
         return
 
     # Add matched songs to the queue
@@ -726,14 +754,14 @@ async def playbytag(ctx, *search_tags):
         song_path = os.path.join(MUSIC_FOLDER, filename)
         song_queue.append(song_path)
 
-    await ctx.send(f"🎶 Added {len(matched)} songs with tag(s) `{', '.join(tags_lower)}` to the queue!")
+    await ctx.send(f"🌈 Added **{len(matched)}** radiant tracks to the queue, inspired by tag(s): `{', '.join(tags_lower)}` ✨")
 
     # Auto-play if nothing is currently playing
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
         else:
-            await ctx.send("❌ You need to be in a voice channel to play music!")
+            await ctx.send("❌ You need to be in a voice channel to let the music shine through.")
             return
 
     if not ctx.voice_client.is_playing():
@@ -743,7 +771,7 @@ async def playbytag(ctx, *search_tags):
 async def listtags(ctx):
     """Shows all tags currently in use for uploaded songs."""
     if not file_tags:
-        await ctx.send("❌ No tags have been added yet.")
+        await ctx.send("🌥️ No tags have been shared with the universe yet.")
         return
 
     # Collect all unique tags
@@ -752,17 +780,19 @@ async def listtags(ctx):
         unique_tags.update(tags)
 
     if not unique_tags:
-        await ctx.send("❌ No tags found.")
+        await ctx.send("🌫️ The air is still—no tags are dancing right now.")
         return
 
     sorted_tags = sorted(unique_tags)
     tag_text = ", ".join(sorted_tags)
 
     embed = discord.Embed(
-        title="🏷️ Current Tags in Use",
-        description=tag_text,
-        color=discord.Color.blurple()
+        title="🌼 Tags Blooming in the Archive",
+        description=f"`{tag_text}`",
+        color=discord.Color.from_str("#ffb6c1")  # Soft pink like morning light
     )
+    embed.set_footer(text="Tag your uploads to help them shine brighter ✨")
+
     await ctx.send(embed=embed)
 
 @bot.command(aliases=["shutup", "nomore", "stoppen"])
@@ -773,16 +803,16 @@ async def stop(ctx):
 
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
-        await ctx.send("⏹ Music stopped and queue cleared!")
+        await ctx.send("🌤️ Echosol takes a gentle breath... The melody has hushed, and your queue has floated away on a breeze. 🍃💛")
     else:
-        await ctx.send("⏹ No music was playing, but the queue has been cleared!")
+        await ctx.send("🕊️ The air is quiet already, but your queue has been lovingly cleared. 💫")
 
 @bot.command(aliases=["spankies", "cq"])
 async def clearqueue(ctx):
     """Clears the music queue."""
     global song_queue
     song_queue = []  # Empty the queue
-    await ctx.send("🗑️ Cleared the music queue!")
+    await ctx.send("🌈 The queue has been cleared with care — a fresh breeze of musical sunshine awaits. 💛")
 
 @bot.command(aliases=["exterminate", "cu"])
 async def clearuploads(ctx):
@@ -797,7 +827,7 @@ async def clearuploads(ctx):
             file_count += 1
 
     uploaded_files = []  # Reset the uploaded files list
-    await ctx.send(f"🗑️ Deleted {file_count} uploaded files.")
+    await ctx.send(f"🌤️ Echosol has gently released **{file_count}** uploaded songs into the wind. The sky is clear for fresh melodies to shine. 💫")
 
 # Run the bot
 TOKEN = os.getenv("TOKEN")  # Reads token from environment variables
