@@ -240,21 +240,30 @@ async def play_next(ctx):
     if song_queue:
         song_data = song_queue.pop(0)
 
-        # Determine source and title
         if isinstance(song_data, tuple):
             original_url, song_title = song_data
             try:
                 with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
                     info = ydl.extract_info(original_url, download=False)
                     song_url = info['url']
-                    duration = int(info.get("duration", 0))
+                    duration = info.get('duration', 0)
             except Exception as e:
                 await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
                 return await play_next(ctx)
         else:
             song_url = song_data
             song_title = os.path.basename(song_url)
-            duration = get_local_duration(song_url)
+            try:
+                if song_url.endswith(".mp3"):
+                    audio = MP3(song_url)
+                elif song_url.endswith(".wav"):
+                    audio = WAVE(song_url)
+                else:
+                    audio = None
+                duration = int(audio.info.length) if audio else 0
+            except Exception as e:
+                await ctx.send(f"⚠️ Failed to read file duration: {e}")
+                duration = 0
 
         vc = ctx.voice_client
 
@@ -266,25 +275,27 @@ async def play_next(ctx):
         vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
 
-        # Send Now Playing with progress bar message
-        message = await ctx.send(f"▶️ Now playing: **{song_title}**\n`[──────────] 0:00 / {time.strftime('%M:%S', time.gmtime(duration))}`")
+        # Display initial Now Playing embed
+        embed = discord.Embed(title="🎵 Now Playing", description=f"**{song_title}**", color=discord.Color.green())
+        if duration:
+            embed.add_field(name="Progress", value="`[░░░░░░░░░░]` 0:00", inline=False)
+        message = await ctx.send(embed=embed)
 
-        # Live progress bar
-        if duration > 0:
-            start_time = time.time()
-            while vc.is_playing():
-                elapsed = int(time.time() - start_time)
-                if elapsed > duration:
-                    break
-                progress_ratio = elapsed / duration
-                bar_blocks = int(progress_ratio * 10)
-                bar = "[" + "█" * bar_blocks + "─" * (10 - bar_blocks) + "]"
-                timestamp = f"{time.strftime('%M:%S', time.gmtime(elapsed))} / {time.strftime('%M:%S', time.gmtime(duration))}"
+        # Update progress bar if duration is known
+        if duration:
+            progress_bar_length = 10
+            for second in range(duration):
+                filled = int((second / duration) * progress_bar_length)
+                empty = progress_bar_length - filled
+                bar = "█" * filled + "░" * empty
+                embed.set_field_at(0, name="Progress", value=f"`[{bar}]` {second//60}:{second%60:02d}", inline=False)
                 try:
-                    await message.edit(content=f"▶️ Now playing: **{song_title}**\n`{bar} {timestamp}`")
-                except discord.NotFound:
-                    break
-                await asyncio.sleep(5)
+                    await message.edit(embed=embed)
+                except discord.HTTPException:
+                    pass
+                await asyncio.sleep(1)
+        else:
+            await message.edit(content=f"▶️ Now playing: **{song_title}**")
 
     else:
         await ctx.send("✅ Queue is empty!")
