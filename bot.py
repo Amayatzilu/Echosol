@@ -69,25 +69,37 @@ file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
 
 @bot.event
 async def on_message(message):
-    """Handles file uploads from users and updates the song list with optional tags."""
-    global uploaded_files
+    global uploaded_files, file_tags
+
     if message.attachments:
+        new_files = []
+
         for attachment in message.attachments:
             if attachment.filename.endswith(('.mp3', '.wav')):
                 file_path = os.path.join(MUSIC_FOLDER, attachment.filename)
                 await attachment.save(file_path)
                 uploaded_files.append(attachment.filename)
+                file_tags.setdefault(attachment.filename, [])
+                new_files.append(attachment.filename)
 
-                # Tag parsing: look for "tags: ..." anywhere in the message
-                tags = []
-                if "tags:" in message.content.lower():
-                    tag_text = message.content.lower().split("tags:", 1)[1]
-                    tags = [t.strip().lower() for t in tag_text.split() if t.strip()]
-                    if tags:
-                        file_tags[attachment.filename] = tags
+        if new_files:
+            await message.channel.send(
+                f"🎵 Received {len(new_files)} file(s): {', '.join(new_files)}.\n"
+                f"Reply with tags (separated by spaces or commas) for all of them."
+            )
 
-                tag_msg = f" (Tags: {', '.join(tags)})" if tags else ""
-                await message.channel.send(f"🎵 File received: **{attachment.filename}**{tag_msg}. Use `!listsongs` to see uploaded songs.")
+            def check(m):
+                return m.author == message.author and m.channel == message.channel
+
+            try:
+                reply = await bot.wait_for('message', timeout=30.0, check=check)
+                tags = [tag.strip().lower() for tag in reply.content.replace(',', ' ').split()]
+                for file in new_files:
+                    file_tags[file].extend(tags)
+                await message.channel.send(f"🏷 Tagged file(s): `{', '.join(tags)}`")
+            except asyncio.TimeoutError:
+                await message.channel.send("⌛ Tagging skipped (no response in 30 seconds).")
+
     await bot.process_commands(message)
 
 @bot.command(aliases=["playwithme", "connect", "verbinden"])
