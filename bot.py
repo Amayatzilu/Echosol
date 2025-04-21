@@ -28,7 +28,7 @@ if cookie_data:
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
 
-@bot.command(aliases=["lost", "helfen", "aide"])
+@bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
     """Displays all main commands, grouped by category."""
     embed = discord.Embed(title="🎶 Echosol Help", color=discord.Color.blurple())
@@ -180,7 +180,7 @@ async def leave(ctx):
     else:
         await ctx.send("❌ I'm not in a voice channel.")
 
-@bot.command(aliases=["p", "gimme", "spielen", "jouer"])
+@bot.command(aliases=["p", "gimme", "spielen"])
 async def play(ctx, url: str = None):
     """Plays a song from YouTube or adds it to the queue."""
     if not url:
@@ -683,7 +683,7 @@ async def playbytag(ctx, *search_tags):
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.command(aliases=["redflag", "viewtags", "showtags"])
+@bot.command(aliases=["whiteflag", "viewtags", "showtags"])
 async def listtags(ctx):
     """Shows all tags currently in use for uploaded songs."""
     if not file_tags:
