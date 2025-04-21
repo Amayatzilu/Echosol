@@ -174,31 +174,34 @@ async def play(ctx, url: str = None):
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 async def play_next(ctx):
-    """Plays the next song in the queue, handling both YouTube and uploaded files."""
     global volume_level
+
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
 
     if song_queue:
-        song_data = song_queue.pop(0)  # Get the next song
+        song_data = song_queue.pop(0)
 
-        # Check if it's a YouTube song (tuple) or an uploaded file (string path)
         if isinstance(song_data, tuple):
             original_url, song_title = song_data
-            with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-                try:
+            try:
+                with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
                     info = ydl.extract_info(original_url, download=False)
-                    song_url = info['url']  # Refreshed YouTube stream link
-                except Exception as e:
-                    await ctx.send(f"⚠️ Error retrieving audio: {e}\nSkipping to next song...")
-                    return await play_next(ctx)
+                    song_url = info['url']
+                # Optional: Send confirmation
+                # await ctx.send(f"🔗 Refreshed stream for: **{song_title}**")
+            except Exception as e:
+                await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
+                return await play_next(ctx)
         else:
-            song_url = song_data  # Local file
+            song_url = song_data
             song_title = os.path.basename(song_url)
 
         vc = ctx.voice_client
 
         def after_play(error):
+            if error:
+                print(f"⚠️ Playback error: {error}")
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
         vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
@@ -443,17 +446,23 @@ async def listsongs(ctx):
 
 @bot.command(aliases=["everything", "alle", "expulso", "mruniverse"])
 async def playalluploads(ctx):
-    """Adds all uploaded songs to the queue and starts playing."""
+    """Adds all uploaded songs to the queue in shuffled order."""
     if not uploaded_files:
-        await ctx.send("❌ No uploaded songs available.")
+        await ctx.send("❌ No uploaded songs found.")
         return
 
-    for filename in uploaded_files:
+    # Shuffle a copy of the uploaded file list
+    shuffled_songs = uploaded_files[:]
+    random.shuffle(shuffled_songs)
+
+    # Queue them
+    for filename in shuffled_songs:
         song_path = os.path.join(MUSIC_FOLDER, filename)
         song_queue.append(song_path)
 
-    await ctx.send(f"🎶 Queued all {len(uploaded_files)} uploaded songs!")
+    await ctx.send(f"🎶 Shuffled and queued **{len(shuffled_songs)}** uploaded songs!")
 
+    # Connect and start playing
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
@@ -529,8 +538,8 @@ async def playbypage(ctx, *pages):
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.command(aliases=["number", "n"])
-async def playnumber(ctx, *numbers):
+@bot.command(aliases=["number", "playnumber", "n"])
+async def playbynumber(ctx, *numbers):
     """Plays one or multiple uploaded songs using their numbers."""
     added_songs = []
     for num in numbers:
@@ -596,132 +605,7 @@ async def tag(ctx, *args):
     else:
         await ctx.send("❌ No valid songs tagged.")
 
-@bot.command(aliases=["tagged", "whiteflag", "beschriftet"])
-async def listbytag(ctx, *search_tags):
-    """Lists songs matching one or more tags. Usage: !listbytag <tag> [tag2 ...]"""
-    if not search_tags:
-        await ctx.send("❌ Please specify at least one tag. Example: `!listbytag chill`")
-        return
-
-    tags_lower = [t.lower() for t in search_tags]
-    matched_files = [f for f in uploaded_files if any(tag in file_tags.get(f, []) for tag in tags_lower)]
-
-    if not matched_files:
-        await ctx.send(f"❌ No songs found with tag(s): `{', '.join(tags_lower)}`")
-        return
-
-    per_page = 10
-    total_pages = math.ceil(len(matched_files) / per_page)
-    range_size = 25
-    current_page = 0
-
-    def get_page_embed(page_index):
-        start = page_index * per_page
-        end = start + per_page
-        page = matched_files[start:end]
-        
-        song_list = ""
-        for i, song in enumerate(page):
-            song_list += f"{start + i + 1}. {song}\n"
-
-        embed = discord.Embed(
-            title=f"🎵 Tagged Songs (Page {page_index + 1}/{total_pages})",
-            description=song_list,
-            color=discord.Color.purple()
-        )
-        embed.set_footer(text=f"Tags: {', '.join(tags_lower)}")
-        return embed
-
-    class PaginationView(View):
-        def __init__(self):
-            super().__init__(timeout=60)
-            self.current_page = 0
-            self.page_range_index = 0
-            self.page_options = []
-            self.selector = None
-            self.add_selector()
-
-        def add_selector(self):
-            if self.selector:
-                self.remove_item(self.selector)
-            self.page_options = [
-                discord.SelectOption(label=f"Page {i+1}", value=str(i))
-                for i in range(
-                    self.page_range_index * range_size,
-                    min((self.page_range_index + 1) * range_size, total_pages)
-                )
-            ]
-            self.selector = Select(
-                placeholder="Jump to page...",
-                options=self.page_options
-            )
-
-            async def select_callback(interaction: discord.Interaction):
-                self.current_page = int(self.selector.values[0])
-                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
-
-            self.selector.callback = select_callback
-            self.add_item(self.selector)
-
-        @discord.ui.button(label="⏮️ Prev", style=discord.ButtonStyle.blurple)
-        async def prev_page(self, interaction: discord.Interaction, button: Button):
-            if self.current_page > 0:
-                self.current_page -= 1
-                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
-
-        @discord.ui.button(label="🔀 Shuffle This Page", style=discord.ButtonStyle.green)
-        async def shuffle_page(self, interaction: discord.Interaction, button: Button):
-            start = self.current_page * per_page
-            end = start + per_page
-            page = matched_files[start:end]
-            random.shuffle(page)
-
-            # Add shuffled songs to queue
-            added = []
-            for filename in page:
-                song_path = os.path.join(MUSIC_FOLDER, filename)
-                song_queue.append(song_path)
-                added.append(filename)
-
-            await interaction.response.send_message(
-                f"🔀 Shuffled and queued songs from page {self.current_page + 1}: {len(added)} added.",
-                ephemeral=True
-    )
-
-            # Auto-play if needed
-            if not ctx.voice_client:
-                if ctx.author.voice:
-                    await ctx.author.voice.channel.connect()
-                else:
-                    return  # User not in a voice channel
-            if not ctx.voice_client.is_playing():
-                await play_next(ctx)
-
-        @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.blurple)
-        async def next_page(self, interaction: discord.Interaction, button: Button):
-            if self.current_page < total_pages - 1:
-                self.current_page += 1
-                await interaction.response.edit_message(embed=get_page_embed(self.current_page), view=self)
-
-        @discord.ui.button(label="🔁 Prev Range", style=discord.ButtonStyle.secondary, row=1)
-        async def prev_range(self, interaction: discord.Interaction, button: Button):
-            if self.page_range_index > 0:
-                self.page_range_index -= 1
-                self.add_selector()
-                await interaction.response.edit_message(view=self)
-
-        @discord.ui.button(label="🔁 Next Range", style=discord.ButtonStyle.secondary, row=1)
-        async def next_range(self, interaction: discord.Interaction, button: Button):
-            max_index = (total_pages - 1) // range_size
-            if self.page_range_index < max_index:
-                self.page_range_index += 1
-                self.add_selector()
-                await interaction.response.edit_message(view=self)
-
-    view = PaginationView()
-    await ctx.send(embed=get_page_embed(current_page), view=view)
-
-@bot.command(aliases=["tagplay", "greenflag", "spielwahl"])
+@bot.command(aliases=["tagplay", "greenflag"])
 async def playbytag(ctx, *search_tags):
     """Plays all uploaded songs that match one or more tags. Usage: !playbytag chill vibe"""
     if not search_tags:
@@ -783,120 +667,13 @@ async def listtags(ctx):
 async def stop(ctx):
     """Stops playback and clears the queue."""
     global song_queue
-    song_queue = []  # Clear the queue
+    song_queue.clear()  # Clear the queue
 
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
         await ctx.send("⏹ Music stopped and queue cleared!")
     else:
-        await ctx.send("⏹ Queue cleared, but no music was playing.")
-
-@bot.command(aliases=["cp"])
-async def createplaylist(ctx, playlist_name: str):
-    """Creates a new playlist."""
-    if playlist_name in playlists:
-        await ctx.send(f"❌ Playlist '{playlist_name}' already exists.")
-    else:
-        playlists[playlist_name] = []
-        await ctx.send(f"✅ Created playlist '{playlist_name}'!")
-
-@bot.command(aliases=["cpq"])
-async def createplaylistqueue(ctx, playlist_name: str):
-    """Creates a new playlist using the current queue."""
-    if playlist_name in playlists:
-        await ctx.send(f"❌ Playlist '{playlist_name}' already exists.")
-    elif not song_queue:
-        await ctx.send("❌ The queue is empty, cannot create playlist.")
-    else:
-        playlists[playlist_name] = song_queue.copy()
-        await ctx.send(f"✅ Created playlist '{playlist_name}' from current queue!")
-
-@bot.command(aliases=["atp"])
-async def addtoplaylist(ctx, playlist_name: str, url: str):
-    """Adds a song to a playlist."""
-    if playlist_name not in playlists:
-        await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
-    else:
-        playlists[playlist_name].append(url)
-        await ctx.send(f"🎵 Added song to playlist '{playlist_name}'!")
-    if 1 <= number <= len(uploaded_files):
-        song_name = uploaded_files[number - 1]
-        song_path = os.path.join(MUSIC_FOLDER, song_name)
-        playlists[playlist_name].append(song_path)
-        await ctx.send(f"🎵 Added **{song_name}** to playlist '{playlist_name}'!")
-    else:
-        await ctx.send("❌ Invalid song number. Use `!list_songs` to see available songs.")
-
-@bot.command(aliases=["sp"])
-async def showplaylist(ctx, playlist_name: str):
-    """Displays songs in a playlist with pagination and shuffle."""
-    if playlist_name not in playlists or not playlists[playlist_name]:
-        await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
-        return
-
-    songs = playlists[playlist_name]
-    page = 0
-    items_per_page = 10
-
-    def get_page_embed():
-        start = page * items_per_page
-        end = start + items_per_page
-        current_page_songs = songs[start:end]
-        embed = discord.Embed(
-            title=f"📜 Playlist '{playlist_name}'",
-            description='\n'.join([f"{i+1+start}. {song}" for i, song in enumerate(current_page_songs)]),
-            color=discord.Color.purple()
-        )
-        embed.set_footer(text=f"Page {page+1}/{(len(songs) + items_per_page - 1) // items_per_page}")
-        return embed
-
-    class PlaylistView(discord.ui.View):
-        def __init__(self):
-            super().__init__(timeout=60)
-            self.message = None
-
-        @discord.ui.button(label="◀️ Prev", style=discord.ButtonStyle.secondary)
-        async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
-            nonlocal page
-            if page > 0:
-                page -= 1
-                await interaction.response.edit_message(embed=get_page_embed(), view=self)
-
-        @discord.ui.button(label="▶️ Next", style=discord.ButtonStyle.secondary)
-        async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-            nonlocal page
-            if (page + 1) * items_per_page < len(songs):
-                page += 1
-                await interaction.response.edit_message(embed=get_page_embed(), view=self)
-
-        @discord.ui.button(label="🔀 Shuffle", style=discord.ButtonStyle.success)
-        async def shuffle_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            import random
-            random.shuffle(playlists[playlist_name])
-            await interaction.response.edit_message(embed=get_page_embed(), view=self)
-
-    view = PlaylistView()
-    await ctx.send(embed=get_page_embed(), view=view)
-
-@bot.command(aliases=["playlist"])
-async def loadplaylist(ctx, playlist_name: str):
-    """Plays all songs from a playlist."""
-    if playlist_name not in playlists or not playlists[playlist_name]:
-        await ctx.send(f"❌ Playlist '{playlist_name}' is empty or does not exist.")
-    else:
-        song_queue.extend(playlists[playlist_name])
-        await ctx.send(f"▶️ Added playlist '{playlist_name}' to queue!")
-        if not ctx.voice_client or not ctx.voice_client.is_playing():
-            await play_next(ctx)
-
-@bot.command(aliases=["dp"])
-async def deleteplaylist(ctx, playlist_name: str):
-    """Deletes a playlist."""
-    if playlist_name in playlists:
-        del playlists[playlist_name]
-        await ctx.send(f"🗑 Playlist '{playlist_name}' deleted.")
-    else:
-        await ctx.send(f"❌ Playlist '{playlist_name}' does not exist.")
+        await ctx.send("⏹ No music was playing, but the queue has been cleared!")
 
 @bot.command(aliases=["spankies", "cq"])
 async def clearqueue(ctx):
