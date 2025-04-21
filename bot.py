@@ -275,28 +275,40 @@ async def play_next(ctx):
         vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
 
+        # Function to generate the heartbeats progress bar
+        def heartbeats_bar(current, total, segments=10):
+            filled = int((current / total) * segments)
+            bar = ""
+            for i in range(segments):
+                if i < filled:
+                    bar += "💛"
+                elif i == filled:
+                    bar += "💖"
+                else:
+                    bar += "🤍"
+            return bar
+
         # Display initial Now Playing embed
-        embed = discord.Embed(title="🎵 Now Playing", description=f"**{song_title}**", color=discord.Color.green())
+        embed = discord.Embed(title="🎵 Now Playing", description=f"**{song_title}**", color=discord.Color.from_str("#f9c6eb"))
         if duration:
-            embed.add_field(name="Progress", value="`[░░░░░░░░░░]` 0:00", inline=False)
+            embed.add_field(name="Progress", value=f"{heartbeats_bar(0, duration)} `0:00`", inline=False)
         message = await ctx.send(embed=embed)
 
-        # Update progress bar if duration is known
+        # Update progress bar live
         if duration:
-            progress_bar_length = 10
-            for second in range(duration):
-                filled = int((second / duration) * progress_bar_length)
-                empty = progress_bar_length - filled
-                bar = "█" * filled + "░" * empty
-                embed.set_field_at(0, name="Progress", value=f"`[{bar}]` {second//60}:{second%60:02d}", inline=False)
+            for second in range(1, duration + 1):
+                bar = heartbeats_bar(second, duration)
+                minutes = second // 60
+                seconds = second % 60
+                timestamp = f"{minutes}:{seconds:02d}"
                 try:
+                    embed.set_field_at(0, name="Progress", value=f"{bar} `{timestamp}`", inline=False)
                     await message.edit(embed=embed)
                 except discord.HTTPException:
                     pass
                 await asyncio.sleep(1)
         else:
             await message.edit(content=f"▶️ Now playing: **{song_title}**")
-
     else:
         await ctx.send("✅ Queue is empty!")
 
