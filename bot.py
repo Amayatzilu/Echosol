@@ -555,19 +555,6 @@ async def playnumber(ctx, *numbers):
     if not ctx.voice_client or not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.event
-async def on_message(message):
-    """Handles file uploads from users and updates the song list."""
-    global uploaded_files
-    if message.attachments:
-        for attachment in message.attachments:
-            if attachment.filename.endswith(('.mp3', '.wav')):
-                file_path = os.path.join(MUSIC_FOLDER, attachment.filename)
-                await attachment.save(file_path)
-                uploaded_files.append(attachment.filename)
-                await message.channel.send(f"🎵 File received: **{attachment.filename}**. Use `!listsongs` to see available songs.")
-    await bot.process_commands(message)
-
 @bot.command(aliases=["flag", "etikett"])
 async def tag(ctx, *args):
     """Tags one or more uploaded songs. Usage: !tag <number(s)> <tags...>"""
