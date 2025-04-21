@@ -221,7 +221,6 @@ async def play(ctx, url: str = None):
         await play_next(ctx)
 async def play_next(ctx):
     global volume_level
-
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
 
@@ -234,14 +233,14 @@ async def play_next(ctx):
                 with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
                     info = ydl.extract_info(original_url, download=False)
                     song_url = info['url']
-                # Optional: Send confirmation
-                # await ctx.send(f"🔗 Refreshed stream for: **{song_title}**")
+                    duration = info.get('duration', 0)
             except Exception as e:
                 await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
                 return await play_next(ctx)
         else:
             song_url = song_data
             song_title = os.path.basename(song_url)
+            duration = 0
 
         vc = ctx.voice_client
 
@@ -252,7 +251,28 @@ async def play_next(ctx):
 
         vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
-        await ctx.send(f"▶️ Now playing: **{song_title}**")
+
+        # Send and update progress bar message
+        msg = await ctx.send(f"▶️ Now playing: **{song_title}**")
+
+        if duration > 0:
+            def format_time(seconds):
+                minutes = seconds // 60
+                seconds = seconds % 60
+                return f"{minutes:02}:{seconds:02}"
+
+            total_blocks = 20
+            for elapsed in range(0, duration + 1, 5):
+                progress = int((elapsed / duration) * total_blocks)
+                bar = "▰" * progress + "▱" * (total_blocks - progress)
+                text = f"▶️ Now playing: **{song_title}**\n[{bar}] {format_time(elapsed)} / {format_time(duration)}"
+                try:
+                    await msg.edit(content=text)
+                except discord.NotFound:
+                    break  # Message was deleted
+                await asyncio.sleep(5)
+        else:
+            await msg.edit(content=f"▶️ Now playing: **{song_title}**\nProgress: unknown")
     else:
         await ctx.send("✅ Queue is empty!")
 
