@@ -68,10 +68,27 @@ uploaded_files = []  # List to store uploaded files
 file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
 
 @bot.event
-async def on_ready():
+async def on_message(message):
+    """Handles file uploads from users and updates the song list with optional tags."""
     global uploaded_files
-    uploaded_files = [f for f in os.listdir(MUSIC_FOLDER) if f.endswith(('.mp3', '.wav'))]
-    print(f'Logged in as {bot.user}')
+    if message.attachments:
+        for attachment in message.attachments:
+            if attachment.filename.endswith(('.mp3', '.wav')):
+                file_path = os.path.join(MUSIC_FOLDER, attachment.filename)
+                await attachment.save(file_path)
+                uploaded_files.append(attachment.filename)
+
+                # Tag parsing: look for "tags: ..." anywhere in the message
+                tags = []
+                if "tags:" in message.content.lower():
+                    tag_text = message.content.lower().split("tags:", 1)[1]
+                    tags = [t.strip().lower() for t in tag_text.split() if t.strip()]
+                    if tags:
+                        file_tags[attachment.filename] = tags
+
+                tag_msg = f" (Tags: {', '.join(tags)})" if tags else ""
+                await message.channel.send(f"🎵 File received: **{attachment.filename}**{tag_msg}. Use `!listsongs` to see uploaded songs.")
+    await bot.process_commands(message)
 
 @bot.command(aliases=["playwithme", "connect", "verbinden"])
 async def join(ctx):
