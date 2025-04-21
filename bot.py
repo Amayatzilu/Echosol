@@ -69,38 +69,47 @@ file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
 
 @bot.event
 async def on_message(message):
-    global uploaded_files, file_tags
+    global uploaded_files, pending_tag_uploads
 
+    # Allow commands to be processed
+    await bot.process_commands(message)
+
+    # Ignore bot's own messages
+    if message.author.bot:
+        return
+
+    # Handle file uploads
     if message.attachments:
         new_files = []
-
         for attachment in message.attachments:
             if attachment.filename.endswith(('.mp3', '.wav')):
                 file_path = os.path.join(MUSIC_FOLDER, attachment.filename)
                 await attachment.save(file_path)
                 uploaded_files.append(attachment.filename)
-                file_tags.setdefault(attachment.filename, [])
                 new_files.append(attachment.filename)
 
         if new_files:
+            pending_tag_uploads[message.author.id] = new_files
             await message.channel.send(
                 f"🎵 Received {len(new_files)} file(s): {', '.join(new_files)}.\n"
                 f"Reply with tags (separated by spaces or commas) for all of them."
             )
+        return
 
-            def check(m):
-                return m.author == message.author and m.channel == message.channel
+    # Handle replies with tags
+    if message.reference and message.author.id in pending_tag_uploads:
+        tags = [t.strip().lower() for t in message.content.replace(",", " ").split()]
+        if not tags:
+            await message.channel.send("❌ No tags provided. Try again.")
+            return
 
-            try:
-                reply = await bot.wait_for('message', timeout=30.0, check=check)
-                tags = [tag.strip().lower() for tag in reply.content.replace(',', ' ').split()]
-                for file in new_files:
-                    file_tags[file].extend(tags)
-                await message.channel.send(f"🏷 Tagged file(s): `{', '.join(tags)}`")
-            except asyncio.TimeoutError:
-                await message.channel.send("⌛ Tagging skipped (no response in 30 seconds).")
+        for filename in pending_tag_uploads[message.author.id]:
+            if filename not in file_tags:
+                file_tags[filename] = []
+            file_tags[filename].extend(tags)
 
-    await bot.process_commands(message)
+        await message.channel.send(f"🏷 Tagged file(s): {', '.join(tags)}")
+        del pending_tag_uploads[message.author.id]
 
 @bot.command(aliases=["playwithme", "connect", "verbinden"])
 async def join(ctx):
