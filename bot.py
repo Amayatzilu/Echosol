@@ -767,7 +767,7 @@ async def listtags(ctx):
     )
     await ctx.send(embed=embed)
 
-@@bot.command(aliases=["shutup", "nomore", "stoppen"])
+@bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
     """Stops playback and clears the queue."""
     global song_queue
