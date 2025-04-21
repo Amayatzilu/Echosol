@@ -4,6 +4,8 @@ from discord.ext import commands
 import yt_dlp as youtube_dl
 import asyncio
 import random
+from mutagen.mp3 import MP3
+from mutagen.wave import WAVE
 
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
@@ -219,8 +221,6 @@ async def play(ctx, url: str = None):
 
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
-from mutagen.mp3 import MP3
-from mutagen.wave import WAVE
 
 def get_local_duration(path):
     try:
