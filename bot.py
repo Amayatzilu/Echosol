@@ -28,16 +28,62 @@ if cookie_data:
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
 
-@bot.command(aliases=["lost", "helfen","aide"])
+@bot.command(aliases=["lost", "helfen", "aide"])
 async def help(ctx):
-    """Displays all main commands."""
-    help_text = "**🎵 Available Commands:**\n"
-    
-    for command in bot.commands:
-        if not command.hidden:  # Ignores hidden commands
-            help_text += f"**!{command.name}** - {command.help}\n"
-    
-    await ctx.send(help_text)
+    """Displays all main commands, grouped by category."""
+    embed = discord.Embed(title="🎶 Echosol Help", color=discord.Color.blurple())
+    embed.set_footer(text="Use commands as shown. Aliases are supported for most.")
+
+    embed.add_field(
+        name="🎵 Playback",
+        value=(
+            "**!play** – Plays a song from YouTube or adds it to the queue.\n"
+            "**!pause** – Pauses the current song.\n"
+            "**!resume** – Resumes paused music.\n"
+            "**!skip** – Skips the current song.\n"
+            "**!stop** – Stops playback and clears the queue.\n"
+            "**!volume** – Sets the bot's volume.\n"
+            "**!shuffle** – Shuffles the current music queue.\n"
+            "**!queue** – Displays the current queue with pagination and shuffle button."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="📁 Uploads & Playback",
+        value=(
+            "**!listsongs** – Lists available uploaded songs with optional tag filter, pagination, and actions.\n"
+            "**!playbynumber** – Plays one or multiple uploaded songs using their numbers.\n"
+            "**!playbypage** – Plays one or more pages of uploaded songs.\n"
+            "**!playalluploads** – Adds all uploaded songs to the queue in shuffled order.\n"
+            "**!removeupload** – Removes a specific uploaded song by its number (from !listsongs).\n"
+            "**!clearuploads** – Deletes all uploaded files to free space."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🏷️ Tagging System",
+        value=(
+            "**!tag** – Tags one or more uploaded songs. Usage: `!tag <number(s)> <tags...>`\n"
+            "**!playbytag** – Plays all uploaded songs that match one or more tags. Usage: `!playbytag chill vibe`\n"
+            "**!listtags** – Shows all tags currently in use for uploaded songs."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🛠️ Utility",
+        value=(
+            "**!join** – Joins a voice channel.\n"
+            "**!leave** – Leaves the voice channel.\n"
+            "**!clearqueue** – Clears the music queue.\n"
+            "**!help** – Displays all main commands."
+        ),
+        inline=False
+    )
+
+    await ctx.send(embed=embed)
 
 # Configure YouTube downloader settings
 YDL_OPTIONS = {
@@ -168,7 +214,7 @@ async def play(ctx, url: str = None):
                 await ctx.send(f"🎵 Added to queue: **{info['title']}**")
 
     except Exception as e:
-        await ctx.send(f"⚠️ Error adding song: {e}")
+        await ctx.send(f⚠️ Error adding song: {e}")
         return
 
     if not ctx.voice_client.is_playing():
