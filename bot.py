@@ -214,7 +214,7 @@ async def play(ctx, url: str = None):
                 await ctx.send(f"🎵 Added to queue: **{info['title']}**")
 
     except Exception as e:
-        await ctx.send(f⚠️ Error adding song: {e}")
+        await ctx.send(f"⚠️ Error adding song: {e}")
         return
 
     if not ctx.voice_client.is_playing():
