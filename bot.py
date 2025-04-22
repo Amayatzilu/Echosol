@@ -267,11 +267,12 @@ async def play_next(ctx):
                     audio = WAVE(song_url)
             else:
                 audio = None
-
-            # Some MP3s may be improperly encoded — try reading anyway
-            duration = int(audio.info.length) if audio and audio.info else 0
+            
+            if audio and audio.info:
+                duration = int(audio.info.length)
+            else:
+                duration = 0
         except Exception:
-            # Avoid spamming with specific sync error message
             print(f"[Warning] Could not read duration for: {song_url}")
             duration = 0
 
