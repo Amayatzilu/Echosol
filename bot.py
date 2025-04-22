@@ -73,7 +73,7 @@ async def help(ctx):
                     "📁 **!listsongs** – Explore uploaded treasures\n"
                     "🔢 **!playbynumber** – Choose your glow by number. Alias: n\n"
                     "📄 **!playbypage** – Tune into pages of your musical journey. Alias: pp\n"
-                    "🌎 **!playalluploads** – Let every note shine at once - magically mixed.\n"
+                    "🌎 **!playalluploads** – Let every note shine at once - mixed with magic.\n"
                     "❌ **!deleteupload** – Tuck a song away to make room for more stars. Alias: du\n"
                     "🧹 **!clearuploads** – Sweep the canvas clean for new creations. Alias: cu"
                 )
