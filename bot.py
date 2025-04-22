@@ -50,7 +50,7 @@ async def help(ctx):
             "   ⏹️ **!stop** – Bring the music to a gentle halt & clear the queue.\n"
             "   🔊 **!volume** – Adjust the warmth of the sound. Alias: v.\n"
             "   🔀 **!shuffle** – Let the winds of chance guide your queue.\n"
-            "   📜 **!queue** – Peek at the journey ahead with a scrollable playlist. Alias" q."
+            "   📜 **!queue** – Peek at the journey ahead with a scrollable playlist. Alias: q."
         ),
         inline=False
     )
