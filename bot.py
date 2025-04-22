@@ -265,12 +265,15 @@ async def play_next(ctx):
                     audio = MP3(song_url)
                 elif song_url.endswith(".wav"):
                     audio = WAVE(song_url)
-                else:
-                    audio = None
-                duration = int(audio.info.length) if audio else 0
-            except Exception as e:
-                await ctx.send(f"⚠️ Failed to read file duration: {e}")
-                duration = 0
+            else:
+                audio = None
+
+            # Some MP3s may be improperly encoded — try reading anyway
+            duration = int(audio.info.length) if audio and audio.info else 0
+        except Exception:
+            # Avoid spamming with specific sync error message
+            print(f"[Warning] Could not read duration for: {song_url}")
+            duration = 0
 
         vc = ctx.voice_client
 
@@ -282,7 +285,7 @@ async def play_next(ctx):
         vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
         vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
 
-        # Function to generate the heartbeats progress bar
+        # Heartbeats of light bar
         def heartbeats_bar(current, total, segments=10):
             filled = int((current / total) * segments)
             bar = ""
@@ -295,23 +298,25 @@ async def play_next(ctx):
                     bar += "🤍"
             return bar
 
-        # Display initial Now Playing embed
+        # Format time for display
+        def format_time(seconds):
+            return f"{seconds // 60}:{seconds % 60:02d}"
+
         embed = discord.Embed(
-    title="🌞 Echosol Radiance",
-    description=f"✨ **{song_title}** is glowing through your speakers!",
-    color=discord.Color.from_str("#ffc0cb")  # Soft pink for warmth
-)
+            title="🌞 Echosol Radiance",
+            description=f"✨ **{song_title}** is glowing through your speakers!",
+            color=discord.Color.from_str("#ffc0cb")
+        )
+
         if duration:
-            embed.add_field(name="Progress", value=f"{heartbeats_bar(0, duration)} `0:00`", inline=False)
+            embed.add_field(name="Progress", value=f"{heartbeats_bar(0, duration)} `0:00 / {format_time(duration)}`", inline=False)
         message = await ctx.send(embed=embed)
 
-        # Update progress bar live
+        # Progress bar loop
         if duration:
             for second in range(1, duration + 1):
                 bar = heartbeats_bar(second, duration)
-                minutes = second // 60
-                seconds = second % 60
-                timestamp = f"{minutes}:{seconds:02d}"
+                timestamp = f"{format_time(second)} / {format_time(duration)}"
                 try:
                     embed.set_field_at(0, name="Progress", value=f"{bar} `{timestamp}`", inline=False)
                     await message.edit(embed=embed)
@@ -368,24 +373,21 @@ async def volume(ctx, volume: int):
 
 @bot.command(aliases=["whatsnext", "q"])
 async def queue(ctx):
-    """Displays the current queue with pagination and shuffle button."""
+    """Displays the current queue with pagination and a shuffle button."""
     if not song_queue:
-        await ctx.send("🌥️ The skies are quiet — the queue is empty.")
+        await ctx.send("🌥️ The queue is empty... add a little sunshine with `!play`, `!listsongs`, or more!")
         return
 
     class QueuePages(View):
         def __init__(self):
-            super().__init__(timeout=None)
+            super().__init__(timeout=60)
             self.page = 0
             self.items_per_page = 10
 
-        async def send_page(self, interaction):
+        async def send_page(self, interaction=None, message=None):
             start = self.page * self.items_per_page
             end = start + self.items_per_page
             page_items = song_queue[start:end]
-            if not page_items:
-                await interaction.response.send_message("🚫 No songs on this page.", ephemeral=True)
-                return
 
             queue_display = '\n'.join([
                 f"{i+1}. {os.path.basename(song[1]) if isinstance(song, tuple) else os.path.basename(song)}"
@@ -393,34 +395,53 @@ async def queue(ctx):
             ])
 
             embed = discord.Embed(
-                title=f"📜 Echosol Queue - Page {self.page + 1}",
-                description=f"☀️ Songs lined up to warm your soul:\n```{queue_display}```",
-                color=discord.Color.from_str("#ffd580")  # Soft gold
+                title=f"🌞 Echosol Queue — Page {self.page + 1}",
+                description=queue_display or "🌤️ This page is feeling a little empty...",
+                color=discord.Color.from_str("#f9c6eb")
             )
-            await interaction.response.edit_message(embed=embed, view=self)
+            embed.set_footer(text="Use the buttons below to navigate or shuffle ✨")
 
-        @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
+            if interaction:
+                await interaction.response.edit_message(embed=embed, view=self)
+            elif message:
+                await message.edit(embed=embed, view=self)
+
+        @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.blurple)
         async def prev_page(self, interaction: discord.Interaction, button: Button):
             if self.page > 0:
                 self.page -= 1
                 await self.send_page(interaction)
 
-        @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
+        @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.blurple)
         async def next_page(self, interaction: discord.Interaction, button: Button):
             max_pages = (len(song_queue) - 1) // self.items_per_page
             if self.page < max_pages:
                 self.page += 1
                 await self.send_page(interaction)
 
-        @discord.ui.button(label="🔀 Shuffle", style=discord.ButtonStyle.primary)
-        async def shuffle_button(self, interaction: discord.Interaction, button: Button):
+        @discord.ui.button(label="🔀 Shuffle", style=discord.ButtonStyle.green)
+        async def shuffle_queue(self, interaction: discord.Interaction, button: Button):
             random.shuffle(song_queue)
             self.page = 0
-            await interaction.response.send_message("🎶 Your musical sunbeams have been shuffled!", ephemeral=True)
+            await interaction.response.send_message("🔀 The queue was kissed by the wind and reshuffled!", ephemeral=True)
             await self.send_page(interaction)
 
     view = QueuePages()
-    await view.send_page(await ctx.send("☀️ Loading your radiant playlist..."))
+    start = 0
+    end = start + view.items_per_page
+    page_items = song_queue[start:end]
+    queue_display = '\n'.join([
+        f"{i+1}. {os.path.basename(song[1]) if isinstance(song, tuple) else os.path.basename(song)}"
+        for i, song in enumerate(page_items, start=start)
+    ])
+
+    embed = discord.Embed(
+        title="🌞 Echosol Queue — Page 1",
+        description=queue_display or "🌤️ This page is feeling a little empty...",
+        color=discord.Color.from_str("#f9c6eb")
+    )
+    embed.set_footer(text="Use the buttons below to navigate or shuffle ✨")
+    await ctx.send(embed=embed, view=view)
 
 from discord.ui import View, Button, Select
 import math
