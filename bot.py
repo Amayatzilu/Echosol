@@ -40,7 +40,7 @@ async def help(ctx):
         def __init__(self):
             options = [
                 discord.SelectOption(label="🌞 Playback", description="Commands for music control."),
-                discord.SelectOption(label="📂 Uploads & Playback", description="Manage uploaded songs."),
+                discord.SelectOption(label="📂 Uploads", description="Manage uploaded songs."),
                 discord.SelectOption(label="🏷️ Tagging System", description="Tag and find songs by vibe."),
                 discord.SelectOption(label="🛠️ Utility", description="General bot functions.")
             ]
@@ -68,7 +68,7 @@ async def help(ctx):
                     "📜 **!queue** – View the glowing journey ahead. Alias: q"
                 )
             elif "Uploads" in choice:
-                embed.title = "📂 Uploads & Playback – Curate your cozy corner"
+                embed.title = "📂 Uploads – Curate your cozy corner"
                 embed.description = (
                     "📁 **!listsongs** – Explore uploaded treasures\n"
                     "🔢 **!playbynumber** – Choose your glow by number. Alias: n\n"
