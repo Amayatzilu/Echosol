@@ -30,66 +30,85 @@ if cookie_data:
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
 
+from discord.ui import View, Select
+from discord import Interaction
+
 @bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
-    """Displays all main commands, grouped by category."""
-    embed = discord.Embed(
+    """Displays all main commands with dropdown selection."""
+    class HelpDropdown(Select):
+        def __init__(self):
+            options = [
+                discord.SelectOption(label="🌞 Playback", description="Commands for music control."),
+                discord.SelectOption(label="📂 Uploads & Playback", description="Manage uploaded songs."),
+                discord.SelectOption(label="🏷️ Tagging System", description="Tag and find songs by vibe."),
+                discord.SelectOption(label="🛠️ Utility", description="General bot functions.")
+            ]
+            super().__init__(placeholder="Choose a category to explore...", options=options)
+
+        async def callback(self, interaction: Interaction):
+            choice = self.values[0]
+
+            embed = discord.Embed(
+                color=discord.Color.from_str("#ffe680"),
+                title="✨ Echosol Help – Glowing Commands Guide"
+            )
+            embed.set_footer(text="🌻 Let the sunshine guide your musical path.")
+
+            if "Playback" in choice:
+                embed.title = "🌞 Playback – Light up the room!"
+                embed.description = (
+                    "🎶 **!play** – Bring in a melody from YouTube. Alias: p\n"
+                    "⏸️ **!pause** – Pause the radiant rhythm\n"
+                    "▶️ **!resume** – Resume your beam of sound\n"
+                    "⏭️ **!skip** – Skip to the next shining note\n"
+                    "⏹️ **!stop** – Bring the music to a gentle halt & clear the queue\n"
+                    "🔊 **!volume** – Adjust the warmth of sound. Alias: v\n"
+                    "🔀 **!shuffle** – Let the winds of chance guide your queue.\n"
+                    "📜 **!queue** – View the glowing journey ahead. Alias: q"
+                )
+            elif "Uploads" in choice:
+                embed.title = "📂 Uploads & Playback – Curate your cozy corner"
+                embed.description = (
+                    "📁 **!listsongs** – Explore uploaded treasures\n"
+                    "🔢 **!playbynumber** – Choose your glow by number. Alias: n\n"
+                    "📄 **!playbypage** – Tune into pages of your musical journey. Alias: pp\n"
+                    "🌎 **!playalluploads** – Let every note shine at once - magically mixed.\n"
+                    "❌ **!deleteupload** – Tuck a song away to make room for more stars. Alias: du\n"
+                    "🧹 **!clearuploads** – Sweep the canvas clean for new creations. Alias: cu"
+                )
+            elif "Tagging" in choice:
+                embed.title = "🏷️ Tagging System – Organize with heart"
+                embed.description = (
+                    "🔖 **!tag** – Add tags to your uploads like 'chill', 'sunset', or 'vibe'.\n"
+                    "💚 **!playbytag** – Queue everything with a matching heartbeat.\n"
+                    "📑 **!listtags** – See the beautiful constellation of tags you've created."
+                )
+            elif "Utility" in choice:
+                embed.title = "🛠️ Utility – Stay connected with ease"
+                embed.description = (
+                    "🔗 **!join** – Call down a beam of warmth — Echosol arrives, heart first.\n"
+                    "🚪 **!leave** – Let the light return to the stars\n"
+                    "🧺 **!clearqueue** – Empty the queue and start fresh. Alias: cq\n"
+                    "💡 **!help** – You're never alone – revisit this guide anytime."
+                )
+
+            await interaction.response.edit_message(embed=embed, view=view)
+
+    class HelpView(View):
+        def __init__(self):
+            super().__init__(timeout=60)
+            self.add_item(HelpDropdown())
+
+    intro_embed = discord.Embed(
         title="✨ Welcome to Echosol, your heart's musical companion 💖",
         description="Let the rhythm guide your soul and the light lead your playlist 🌈🎵",
         color=discord.Color.from_str("#ffe680")
     )
-    embed.set_footer(text="🌻 Echosol is powered by light, rhythm, and you – your musical journey starts here.")
+    intro_embed.set_footer(text="🌻 Echosol is powered by light, rhythm, and you – your musical journey starts here.")
 
-    embed.add_field(
-        name="🌞 Playback – Light up the room!",
-        value=(
-            "   🎶 **!play** – Bring in a melody from YouTube or add it to the mix. Alias: p.\n"
-            "   ⏸️ **!pause** – Gently pause your sunshine soundtrack.\n"
-            "   ▶️ **!resume** – Pick up right where the glow left off.\n"
-            "   ⏭️ **!skip** – Skip forward with radiant rhythm.\n"
-            "   ⏹️ **!stop** – Bring the music to a gentle halt & clear the queue.\n"
-            "   🔊 **!volume** – Adjust the warmth of the sound. Alias: v.\n"
-            "   🔀 **!shuffle** – Let the winds of chance guide your queue.\n"
-            "   📜 **!queue** – Peek at the journey ahead with a scrollable playlist. Alias: q."
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="📂 Uploads & Playback – Curate your cozy corner",
-        value=(
-            "   📁 **!listsongs** – Explore your uploaded treasures with filters, tags, and more.\n"
-            "   🔢 **!playbynumber** – Play specific songs by their number. Alias: n.\n"
-            "   📄 **!playbypage** – Queue entire pages of uploads in one go. Alias: pp.\n"
-            "   🌎 **!playalluploads** – Let every note shine by queuing them all (shuffled).\n"
-            "   ❌ **!deleteupload** – Gently retire a song from your collection. Alias: du.\n"
-            "   🧹 **!clearuploads** – Clear the canvas for new creations. Alias: cu."
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="🏷️ Tagging System – Organize with heart",
-        value=(
-            "   🔖 **!tag** – Add tags to your uploads like 'chill', 'sunset', or 'vibe'.\n"
-            "   💚 **!playbytag** – Queue everything with a matching heartbeat.\n"
-            "   📑 **!listtags** – See the beautiful constellation of tags you've created."
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="🛠️ Utility – Stay connected with ease",
-        value=(
-            "   🔗 **!join** – Invite Echosol to your voice channel with a smile.\n"
-            "   🚪 **!leave** – Let the bot float back into the light.\n"
-            "   🧺 **!clearqueue** – Empty the queue and start fresh. Alias: cq.\n"
-            "   💡 **!help** – You're never alone – revisit this guide anytime."
-        ),
-        inline=False
-    )
-
-    await ctx.send(embed=embed)
+    view = HelpView()
+    await ctx.send(embed=intro_embed, view=view)
 
 # Configure YouTube downloader settings
 YDL_OPTIONS = {
