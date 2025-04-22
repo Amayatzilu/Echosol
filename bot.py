@@ -244,30 +244,34 @@ async def play_next(ctx):
     if ctx.voice_client and ctx.voice_client.is_playing():
         return
 
-    if song_queue:
-        song_data = song_queue.pop(0)
+    if not song_queue:
+        await ctx.send("🌈 The musical journey is paused, but the stage awaits. ✨ Use `!play` when you're ready to glow again!")
+        return
 
-        if isinstance(song_data, tuple):
-            original_url, song_title = song_data
-            try:
-                with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-                    info = ydl.extract_info(original_url, download=False)
-                    song_url = info['url']
-                    duration = info.get('duration', 0)
-            except Exception as e:
-                await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
-                return await play_next(ctx)
-        else:
-            song_url = song_data
-            song_title = os.path.basename(song_url)
-            try:
-                if song_url.endswith(".mp3"):
-                    audio = MP3(song_url)
-                elif song_url.endswith(".wav"):
-                    audio = WAVE(song_url)
+    song_data = song_queue.pop(0)
+
+    # Determine if it's a YouTube link or local file
+    if isinstance(song_data, tuple):
+        original_url, song_title = song_data
+        try:
+            with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+                info = ydl.extract_info(original_url, download=False)
+                song_url = info['url']
+                duration = info.get('duration', 0)
+        except Exception as e:
+            await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
+            return await play_next(ctx)
+    else:
+        song_url = song_data
+        song_title = os.path.basename(song_url)
+        try:
+            if song_url.endswith(".mp3"):
+                audio = MP3(song_url)
+            elif song_url.endswith(".wav"):
+                audio = WAVE(song_url)
             else:
                 audio = None
-            
+
             if audio and audio.info:
                 duration = int(audio.info.length)
             else:
@@ -276,58 +280,76 @@ async def play_next(ctx):
             print(f"[Warning] Could not read duration for: {song_url}")
             duration = 0
 
-        vc = ctx.voice_client
+    vc = ctx.voice_client
 
-        def after_play(error):
-            if error:
-                print(f"⚠️ Playback error: {error}")
-            asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
+    def after_play(error):
+        if error:
+            print(f"⚠️ Playback error: {error}")
+        asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-        vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
-        vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
+    vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
+    vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
 
-        # Heartbeats of light bar
-        def heartbeats_bar(current, total, segments=10):
-            filled = int((current / total) * segments)
-            bar = ""
-            for i in range(segments):
-                if i < filled:
-                    bar += "💛"
-                elif i == filled:
-                    bar += "💖"
-                else:
-                    bar += "🤍"
-            return bar
+    # Pulsy heartbeats bar
+    def pulsing_heartbeats_bar(current, total, segments=10, pulse_state=0):
+        filled = int((current / total) * segments)
+        bar = ""
+        pulse_cycle = ['💖', '💗', '💓', '💞']
+        pulse = pulse_cycle[pulse_state % len(pulse_cycle)]
 
-        # Format time for display
-        def format_time(seconds):
-            return f"{seconds // 60}:{seconds % 60:02d}"
+        for i in range(segments):
+            if i < filled:
+                bar += "💛"
+            elif i == filled:
+                bar += pulse
+            else:
+                bar += "🤍"
+        return bar
 
-        embed = discord.Embed(
-            title="🌞 Echosol Radiance",
-            description=f"✨ **{song_title}** is glowing through your speakers!",
-            color=discord.Color.from_str("#ffc0cb")
+    embed = discord.Embed(
+        title="🌞 Echosol Radiance",
+        description=f"✨ **{song_title}** is glowing through your speakers!",
+        color=discord.Color.from_str("#ffc0cb")
+    )
+    if duration:
+        embed.add_field(
+            name="Progress",
+            value=f"{pulsing_heartbeats_bar(0, duration)} `0:00 / {duration // 60}:{duration % 60:02d}`",
+            inline=False
         )
+    message = await ctx.send(embed=embed)
 
-        if duration:
-            embed.add_field(name="Progress", value=f"{heartbeats_bar(0, duration)} `0:00 / {format_time(duration)}`", inline=False)
-        message = await ctx.send(embed=embed)
+    if duration:
+        for second in range(1, duration + 1):
+            bar = pulsing_heartbeats_bar(second, duration, pulse_state=second)
+            minutes = second // 60
+            seconds = second % 60
+            timestamp = f"{minutes}:{seconds:02d} / {duration // 60}:{duration % 60:02d}"
+            try:
+                embed.set_field_at(0, name="Progress", value=f"{bar} `{timestamp}`", inline=False)
+                await message.edit(embed=embed)
+            except discord.HTTPException:
+                pass
+            await asyncio.sleep(1)
 
-        # Progress bar loop
-        if duration:
-            for second in range(1, duration + 1):
-                bar = heartbeats_bar(second, duration)
-                timestamp = f"{format_time(second)} / {format_time(duration)}"
-                try:
-                    embed.set_field_at(0, name="Progress", value=f"{bar} `{timestamp}`", inline=False)
-                    await message.edit(embed=embed)
-                except discord.HTTPException:
-                    pass
-                await asyncio.sleep(1)
-        else:
-            await message.edit(content=f"▶️ Now playing: **{song_title}**")
+        # Sparkle finale ✨
+        try:
+            embed.title = "🌟 Finale Glow"
+            embed.description = f"**{song_title}** just wrapped its dance of light!"
+            embed.set_field_at(0, name="Progress", value="✨✨✨✨✨✨✨✨✨✨ `Finished`", inline=False)
+            await message.edit(embed=embed)
+        except discord.HTTPException:
+            pass
+
+        # Gentle fade-away after a moment
+        await asyncio.sleep(6)
+        try:
+            await message.edit(content="🌙 The glow fades gently into the night...", embed=None)
+        except discord.HTTPException:
+            pass
+
     else:
-        await ctx.send("🌈 The musical journey is paused, but the stage awaits. ✨ Use `!play` when you're ready to glow again!")
+        await message.edit(content=f"▶️ Now playing: **{song_title}**")
 
 @bot.command(aliases=["mixitup", "mischen", "shuff"])
 async def shuffle(ctx):
