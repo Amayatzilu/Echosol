@@ -38,19 +38,19 @@ async def help(ctx):
         description="Let the rhythm guide your soul and the light lead your playlist 🌈🎵",
         color=discord.Color.from_str("#ffe680")
     )
-    embed.set_footer(text="🌻 Shine bright, share the light – your musical journey starts here.")
+    embed.set_footer(text="🌻 Echosol is powered by light, rhythm, and you – your musical journey starts here.")
 
     embed.add_field(
         name="🌞 Playback – Light up the room!",
         value=(
-            "🎶 **!play** – Bring in a melody from YouTube or add it to the mix.\n"
-            "⏸️ **!pause** – Gently pause your sunshine soundtrack.\n"
-            "▶️ **!resume** – Pick up right where the glow left off.\n"
-            "⏭️ **!skip** – Skip forward with radiant rhythm.\n"
-            "⏹️ **!stop** – Bring the music to a gentle halt & clear the queue.\n"
-            "🔊 **!volume** – Adjust the warmth of the sound.\n"
-            "🔀 **!shuffle** – Let the winds of chance guide your queue.\n"
-            "📜 **!queue** – Peek at the journey ahead with a scrollable playlist."
+            "   🎶 **!play** – Bring in a melody from YouTube or add it to the mix. Alias: p.\n"
+            "   ⏸️ **!pause** – Gently pause your sunshine soundtrack.\n"
+            "   ▶️ **!resume** – Pick up right where the glow left off.\n"
+            "   ⏭️ **!skip** – Skip forward with radiant rhythm.\n"
+            "   ⏹️ **!stop** – Bring the music to a gentle halt & clear the queue.\n"
+            "   🔊 **!volume** – Adjust the warmth of the sound. Alias: v.\n"
+            "   🔀 **!shuffle** – Let the winds of chance guide your queue.\n"
+            "   📜 **!queue** – Peek at the journey ahead with a scrollable playlist. Alias" q."
         ),
         inline=False
     )
@@ -58,12 +58,12 @@ async def help(ctx):
     embed.add_field(
         name="📂 Uploads & Playback – Curate your cozy corner",
         value=(
-            "📁 **!listsongs** – Explore your uploaded treasures with filters, tags, and more.\n"
-            "🔢 **!playbynumber** – Play specific songs by their number.\n"
-            "📄 **!playbypage** – Queue entire pages of uploads in one go.\n"
-            "🌎 **!playalluploads** – Let every note shine by queuing them all (shuffled).\n"
-            "❌ **!removeupload** – Gently retire a song from your collection.\n"
-            "🧹 **!clearuploads** – Clear the canvas for new creations."
+            "   📁 **!listsongs** – Explore your uploaded treasures with filters, tags, and more.\n"
+            "   🔢 **!playbynumber** – Play specific songs by their number. Alias: n.\n"
+            "   📄 **!playbypage** – Queue entire pages of uploads in one go. Alias: pp.\n"
+            "   🌎 **!playalluploads** – Let every note shine by queuing them all (shuffled).\n"
+            "   ❌ **!deleteupload** – Gently retire a song from your collection. Alias: du.\n"
+            "   🧹 **!clearuploads** – Clear the canvas for new creations. Alias: cu."
         ),
         inline=False
     )
@@ -71,9 +71,9 @@ async def help(ctx):
     embed.add_field(
         name="🏷️ Tagging System – Organize with heart",
         value=(
-            "🔖 **!tag** – Add tags to your uploads like 'chill', 'sunset', or 'vibe'.\n"
-            "💚 **!playbytag** – Queue everything with a matching heartbeat.\n"
-            "📑 **!listtags** – See the beautiful constellation of tags you've created."
+            "   🔖 **!tag** – Add tags to your uploads like 'chill', 'sunset', or 'vibe'.\n"
+            "   💚 **!playbytag** – Queue everything with a matching heartbeat.\n"
+            "   📑 **!listtags** – See the beautiful constellation of tags you've created."
         ),
         inline=False
     )
@@ -81,10 +81,10 @@ async def help(ctx):
     embed.add_field(
         name="🛠️ Utility – Stay connected with ease",
         value=(
-            "🔗 **!join** – Invite Echosol to your voice channel with a smile.\n"
-            "🚪 **!leave** – Let the bot float back into the light.\n"
-            "🧺 **!clearqueue** – Empty the queue and start fresh.\n"
-            "💡 **!help** – You're never alone – revisit this guide anytime."
+            "   🔗 **!join** – Invite Echosol to your voice channel with a smile.\n"
+            "   🚪 **!leave** – Let the bot float back into the light.\n"
+            "   🧺 **!clearqueue** – Empty the queue and start fresh. Alias: cq.\n"
+            "   💡 **!help** – You're never alone – revisit this guide anytime."
         ),
         inline=False
     )
@@ -634,8 +634,8 @@ async def playalluploads(ctx):
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.command(aliases=["deleteit", "deleteupload", "ru"])
-async def removeupload(ctx, number: int):
+@bot.command(aliases=["delete", "removeupload", "du"])
+async def deleteupload(ctx, number: int):
     """Removes a specific uploaded song by its number (from !listsongs)."""
     if number < 1 or number > len(uploaded_files):
         await ctx.send("🌧️ That number doesn’t shine. Use `!listsongs` to find your musical stars.")
@@ -807,31 +807,55 @@ async def playbytag(ctx, *search_tags):
 
 @bot.command(aliases=["whiteflag", "viewtags", "showtags"])
 async def listtags(ctx):
-    """Shows all tags currently in use for uploaded songs."""
+    """Shows all tags currently in use for uploaded songs, with play buttons."""
     if not file_tags:
         await ctx.send("🌥️ No tags have been shared with the universe yet.")
         return
 
     # Collect all unique tags
-    unique_tags = set()
-    for tags in file_tags.values():
-        unique_tags.update(tags)
+    unique_tags = sorted(set(tag for tags in file_tags.values() for tag in tags))
 
     if not unique_tags:
         await ctx.send("🌫️ The air is still—no tags are dancing right now.")
         return
 
-    sorted_tags = sorted(unique_tags)
-    tag_text = ", ".join(sorted_tags)
+    class TagActionView(discord.ui.View):
+        def __init__(self, tag):
+            super().__init__(timeout=30)
+            self.tag = tag
 
-    embed = discord.Embed(
-        title="🌼 Tags Blooming in the Archive",
-        description=f"`{tag_text}`",
-        color=discord.Color.from_str("#ffb6c1")  # Soft pink like morning light
-    )
-    embed.set_footer(text="Tag your uploads to help them shine brighter ✨")
+        @discord.ui.button(label="▶️ Play", style=discord.ButtonStyle.green)
+        async def play_tagged(self, interaction: discord.Interaction, button: discord.ui.Button):
+            matched = [f for f in uploaded_files if self.tag in file_tags.get(f, [])]
+            if not matched:
+                await interaction.response.send_message("☁️ No songs found under this tag.", ephemeral=True)
+                return
 
-    await ctx.send(embed=embed)
+            random.shuffle(matched)
+            for filename in matched:
+                song_path = os.path.join(MUSIC_FOLDER, filename)
+                song_queue.append(song_path)
+
+            await interaction.response.send_message(f"🌈 Shuffled and added {len(matched)} **`{self.tag}`** tagged songs to your soundscape!", ephemeral=True)
+
+            if not ctx.voice_client:
+                if ctx.author.voice:
+                    await ctx.author.voice.channel.connect()
+                else:
+                    await ctx.send("💭 You must be in a voice channel to let the melodies flow.")
+                    return
+
+            if not ctx.voice_client.is_playing():
+                await play_next(ctx)
+
+    for tag in unique_tags:
+        embed = discord.Embed(
+            title=f"🌼 Tag: `{tag}`",
+            description="Would you like to bask in the sounds of this tag?",
+            color=discord.Color.from_str("#ffb6c1")  # Soft pink like morning light
+        )
+        embed.set_footer(text="Each tag is a petal in your musical bouquet 🌸")
+        await ctx.send(embed=embed, view=TagActionView(tag))
 
 @bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
