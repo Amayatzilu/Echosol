@@ -280,7 +280,11 @@ async def play_next(ctx):
         try:
             with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
                 info = ydl.extract_info(original_url, download=True)
-                song_url = ydl.prepare_filename(info)
+                if 'requested_downloads' in info and len(info['requested_downloads']) > 0:
+                    song_url = info['requested_downloads'][0]['filepath']
+                else:
+                    song_url = ydl.prepare_filename(info)
+
                 duration = info.get('duration', 0)
                 is_temp_youtube = True
         except Exception as e:
