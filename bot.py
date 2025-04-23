@@ -131,6 +131,10 @@ YDL_OPTIONS = {
 FFMPEG_OPTIONS = {
     'options': '-vn -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
+FFMPEG_LOCAL_OPTIONS = {
+    'before_options': '-nostdin',
+    'options': '-vn'
+}
 
 song_queue = []
 playlists = {}
@@ -280,6 +284,7 @@ async def play_next(ctx):
         except Exception as e:
             await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
             return await play_next(ctx)
+        ffmpeg_options = FFMPEG_OPTIONS
     else:
         song_url = song_data
         song_title = os.path.basename(song_url)
@@ -298,6 +303,7 @@ async def play_next(ctx):
         except Exception:
             print(f"[Warning] Could not read duration for: {song_url}")
             duration = 0
+        ffmpeg_options = FFMPEG_LOCAL_OPTIONS
 
     vc = ctx.voice_client
 
@@ -306,7 +312,7 @@ async def play_next(ctx):
             print(f"⚠️ Playback error: {error}")
         asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-    vc.play(discord.FFmpegPCMAudio(song_url, **FFMPEG_OPTIONS), after=after_play)
+    vc.play(discord.FFmpegPCMAudio(song_url, **ffmpeg_options), after=after_play)
     vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
 
     # Pulsy heartbeats bar
@@ -325,6 +331,7 @@ async def play_next(ctx):
                 bar += "🤍"
         return bar
 
+    # Embed: Radiant Now Playing
     embed = discord.Embed(
         title="🌞 Echosol Radiance",
         description=f"✨ **{song_title}** is glowing through your speakers!",
@@ -338,6 +345,7 @@ async def play_next(ctx):
         )
     message = await ctx.send(embed=embed)
 
+    # Live pulsing bar
     if duration:
         for second in range(1, duration + 1):
             bar = pulsing_heartbeats_bar(second, duration, pulse_state=second)
@@ -360,13 +368,12 @@ async def play_next(ctx):
         except discord.HTTPException:
             pass
 
-        # Gentle fade-away after a moment
+        # Gentle fade-away
         await asyncio.sleep(6)
         try:
             await message.edit(content="🌙 The glow fades gently into the night...", embed=None)
         except discord.HTTPException:
             pass
-
     else:
         await message.edit(content=f"▶️ Now playing: **{song_title}**")
 
