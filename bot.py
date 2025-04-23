@@ -272,22 +272,26 @@ async def play_next(ctx):
         return
 
     song_data = song_queue.pop(0)
+    is_temp_youtube = False
 
-    # Determine if it's a YouTube link or local file
+    # Determine file source
     if isinstance(song_data, tuple):
         original_url, song_title = song_data
         try:
-            with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-                info = ydl.extract_info(original_url, download=False)
-                song_url = info['url']
+            with youtube_dl.YDL(YDL_OPTIONS) as ydl:
+                info = ydl.extract_info(original_url, download=True)
+                song_url = ydl.prepare_filename(info)
                 duration = info.get('duration', 0)
+                is_temp_youtube = True
         except Exception as e:
             await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
             return await play_next(ctx)
-        ffmpeg_options = FFMPEG_OPTIONS
+        ffmpeg_options = FFMPEG_LOCAL_OPTIONS
+        use_rainbow_bar = True
     else:
         song_url = song_data
         song_title = os.path.basename(song_url)
+        use_rainbow_bar = False
         try:
             if song_url.endswith(".mp3"):
                 audio = MP3(song_url)
@@ -295,11 +299,7 @@ async def play_next(ctx):
                 audio = WAVE(song_url)
             else:
                 audio = None
-
-            if audio and audio.info:
-                duration = int(audio.info.length)
-            else:
-                duration = 0
+            duration = int(audio.info.length) if audio and audio.info else 0
         except Exception:
             print(f"[Warning] Could not read duration for: {song_url}")
             duration = 0
@@ -310,18 +310,23 @@ async def play_next(ctx):
     def after_play(error):
         if error:
             print(f"⚠️ Playback error: {error}")
+        if is_temp_youtube and os.path.exists(song_url):
+            try:
+                os.remove(song_url)
+                print(f"[Cleanup] Deleted downloaded YouTube file: {song_url}")
+            except Exception as e:
+                print(f"[Cleanup Error] Could not delete file: {e}")
         asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
     vc.play(discord.FFmpegPCMAudio(song_url, **ffmpeg_options), after=after_play)
     vc.source = discord.PCMVolumeTransformer(vc.source, volume_level)
 
-    # Pulsy heartbeats bar
+    # Progress visuals
     def pulsing_heartbeats_bar(current, total, segments=10, pulse_state=0):
         filled = int((current / total) * segments)
-        bar = ""
         pulse_cycle = ['💖', '💗', '💓', '💞']
         pulse = pulse_cycle[pulse_state % len(pulse_cycle)]
-
+        bar = ""
         for i in range(segments):
             if i < filled:
                 bar += "💛"
@@ -331,24 +336,42 @@ async def play_next(ctx):
                 bar += "🤍"
         return bar
 
-    # Embed: Radiant Now Playing
+    def rainbow_pulsing_bar(current, total, segments=10, pulse_state=0):
+        rainbow = ['❤️', '🧡', '💛', '💚', '💙', '💜']
+        filled = int((current / total) * segments)
+        pulse_cycle = ['💖', '💗', '💓', '💞']
+        pulse = pulse_cycle[pulse_state % len(pulse_cycle)]
+        bar = ""
+        for i in range(segments):
+            if i < filled:
+                bar += rainbow[i % len(rainbow)]
+            elif i == filled:
+                bar += pulse
+            else:
+                bar += "🤍"
+        return bar
+
+    # Choose visual based on source
+    progress_bar_func = rainbow_pulsing_bar if use_rainbow_bar else pulsing_heartbeats_bar
+
+    # Initial embed
     embed = discord.Embed(
-        title="🌞 Echosol Radiance",
+        title="🌞 Echosol Radiance" if not use_rainbow_bar else "🌈 Streaming Light",
         description=f"✨ **{song_title}** is glowing through your speakers!",
-        color=discord.Color.from_str("#ffc0cb")
+        color=discord.Color.from_str("#ffc0cb") if not use_rainbow_bar else discord.Color.from_str("#ffd6ff")
     )
     if duration:
         embed.add_field(
             name="Progress",
-            value=f"{pulsing_heartbeats_bar(0, duration)} `0:00 / {duration // 60}:{duration % 60:02d}`",
+            value=f"{progress_bar_func(0, duration)} `0:00 / {duration // 60}:{duration % 60:02d}`",
             inline=False
         )
     message = await ctx.send(embed=embed)
 
-    # Live pulsing bar
+    # Live update
     if duration:
         for second in range(1, duration + 1):
-            bar = pulsing_heartbeats_bar(second, duration, pulse_state=second)
+            bar = progress_bar_func(second, duration, pulse_state=second)
             minutes = second // 60
             seconds = second % 60
             timestamp = f"{minutes}:{seconds:02d} / {duration // 60}:{duration % 60:02d}"
@@ -359,7 +382,7 @@ async def play_next(ctx):
                 pass
             await asyncio.sleep(1)
 
-        # Sparkle finale ✨
+        # Finale
         try:
             embed.title = "🌟 Finale Glow"
             embed.description = f"**{song_title}** just wrapped its dance of light!"
@@ -368,7 +391,6 @@ async def play_next(ctx):
         except discord.HTTPException:
             pass
 
-        # Gentle fade-away
         await asyncio.sleep(6)
         try:
             await message.edit(content="🌙 The glow fades gently into the night...", embed=None)
