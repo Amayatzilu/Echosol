@@ -278,7 +278,7 @@ async def play_next(ctx):
     if isinstance(song_data, tuple):
         original_url, song_title = song_data
         try:
-            with youtube_dl.YDL(YDL_OPTIONS) as ydl:
+            with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
                 info = ydl.extract_info(original_url, download=True)
                 song_url = ydl.prepare_filename(info)
                 duration = info.get('duration', 0)
