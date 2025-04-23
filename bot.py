@@ -200,12 +200,12 @@ async def join(ctx):
 
 @bot.command(aliases=["goaway", "disconnect", "verlassen"])
 async def leave(ctx):
-    """Leaves the voice channel."""
+    """Leaves the voice channel with gentle farewell."""
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
-        await ctx.send("🔇 Left the voice channel!")
+        await ctx.send("🌅 Echosol has gently drifted from the voice channel, returning to the cosmos. 💫")
     else:
-        await ctx.send("❌ I'm not in a voice channel.")
+        await ctx.send("🌙 I'm not shining in any voice channel right now.")
 
 @bot.command(aliases=["p", "gimme", "spielen"])
 async def play(ctx, url: str = None):
@@ -826,55 +826,31 @@ async def playbytag(ctx, *search_tags):
 
 @bot.command(aliases=["whiteflag", "viewtags", "showtags"])
 async def listtags(ctx):
-    """Shows all tags currently in use for uploaded songs, with play buttons."""
+    """Shows all tags currently in use for uploaded songs."""
     if not file_tags:
         await ctx.send("🌥️ No tags have been shared with the universe yet.")
         return
 
     # Collect all unique tags
-    unique_tags = sorted(set(tag for tags in file_tags.values() for tag in tags))
+    unique_tags = set()
+    for tags in file_tags.values():
+        unique_tags.update(tags)
 
     if not unique_tags:
         await ctx.send("🌫️ The air is still—no tags are dancing right now.")
         return
 
-    class TagActionView(discord.ui.View):
-        def __init__(self, tag):
-            super().__init__(timeout=30)
-            self.tag = tag
+    sorted_tags = sorted(unique_tags)
+    tag_text = ", ".join(sorted_tags)
 
-        @discord.ui.button(label="▶️ Play", style=discord.ButtonStyle.green)
-        async def play_tagged(self, interaction: discord.Interaction, button: discord.ui.Button):
-            matched = [f for f in uploaded_files if self.tag in file_tags.get(f, [])]
-            if not matched:
-                await interaction.response.send_message("☁️ No songs found under this tag.", ephemeral=True)
-                return
+    embed = discord.Embed(
+        title="🌼 Tags Blooming in the Archive",
+        description=f"`{tag_text}`",
+        color=discord.Color.from_str("#ffb6c1")  # Soft pink like morning light
+    )
+    embed.set_footer(text="Tag your uploads to help them shine brighter ✨")
 
-            random.shuffle(matched)
-            for filename in matched:
-                song_path = os.path.join(MUSIC_FOLDER, filename)
-                song_queue.append(song_path)
-
-            await interaction.response.send_message(f"🌈 Shuffled and added {len(matched)} **`{self.tag}`** tagged songs to your soundscape!", ephemeral=True)
-
-            if not ctx.voice_client:
-                if ctx.author.voice:
-                    await ctx.author.voice.channel.connect()
-                else:
-                    await ctx.send("💭 You must be in a voice channel to let the melodies flow.")
-                    return
-
-            if not ctx.voice_client.is_playing():
-                await play_next(ctx)
-
-    for tag in unique_tags:
-        embed = discord.Embed(
-            title=f"🌼 Tag: `{tag}`",
-            description="Would you like to bask in the sounds of this tag?",
-            color=discord.Color.from_str("#ffb6c1")  # Soft pink like morning light
-        )
-        embed.set_footer(text="Each tag is a petal in your musical bouquet 🌸")
-        await ctx.send(embed=embed, view=TagActionView(tag))
+    await ctx.send(embed=embed)
 
 @bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
