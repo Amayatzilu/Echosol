@@ -80,10 +80,11 @@ async def help(ctx):
             elif "Tagging" in choice:
                 embed.title = "🏷️ Tagging System – Organize with heart"
                 embed.description = (
-                    "🔖 **!tag** – Add tags to your uploads like 'chill', 'sunset', or 'vibe'.\n"
-                    "💚 **!playbytag** – Queue everything with a matching heartbeat.\n"
+                    "🔖 **!tag** – Let your songs blossom with custom tags like 'sunrise', 'cozy', or 'adventure'.\n"
+                    "💚 **!playbytag** – Play all songs sharing the same spark of light.\n"
                     "📑 **!listtags** – See the beautiful constellation of tags you've created."
                 )
+                    "🌿 **!removetag** – Breeze away a tag or free songs from all their labels. Alias: untag."
             elif "Utility" in choice:
                 embed.title = "🛠️ Utility – Stay connected with ease"
                 embed.description = (
@@ -884,6 +885,86 @@ async def listtags(ctx):
     embed.set_footer(text="Tag your uploads to help them shine brighter ✨")
 
     await ctx.send(embed=embed)
+
+
+
+@bot.command(aliases=["untag", "removetag", "cleartags"])
+async def removetag(ctx, *args):
+    """Removes all tags from specified songs, or removes a specific tag from all songs."""
+    if not args:
+        embed = discord.Embed(
+            title="🌸 Oops! Missing Details",
+            description="Please use:\n\n"
+                        "➔ `!removetag <song number(s)>` to clear all tags from songs.\n"
+                        "➔ `!removetag <tag>` to remove a tag from all songs.",
+            color=discord.Color.from_str("#ffb6c1")  # Soft pink
+        )
+        await ctx.send(embed=embed)
+        return
+
+    loading_message = await ctx.send("✨ Polishing your melodies... One moment, please... 🎵")
+
+    await asyncio.sleep(1)  # Little sparkle pause ✨
+
+    if args[0].isdigit():
+        numbers = []
+        for arg in args:
+            if arg.isdigit():
+                numbers.append(int(arg))
+            else:
+                await ctx.send(f"⚠️ `{arg}` is not a valid song number. Skipping.")
+
+        cleared = []
+        for num in numbers:
+            if 1 <= num <= len(uploaded_files):
+                filename = uploaded_files[num - 1]
+                if filename in file_tags and file_tags[filename]:
+                    file_tags[filename] = []
+                    cleared.append(filename)
+            else:
+                await ctx.send(f"⚠️ Skipped invalid song number: {num}")
+
+        if cleared:
+            embed = discord.Embed(
+                title="💖 Tags Cleared!",
+                description=f"These songs are now floating freely:\n\n" +
+                            "\n".join(f"• {file}" for file in cleared),
+                color=discord.Color.from_str("#fff0b3")  # Soft yellow
+            )
+            embed.set_footer(text="✨ Fresh, tag-free melodies await.")
+            await loading_message.edit(content=None, embed=embed)
+        else:
+            embed = discord.Embed(
+                title="🌥️ No Tags Found",
+                description="Those songs were already as free as the breeze! 🌬️",
+                color=discord.Color.from_str("#add8e6")  # Gentle blue
+            )
+            await loading_message.edit(content=None, embed=embed)
+    else:
+        tag_to_remove = args[0].lower()
+        removed_from = []
+
+        for filename, tags in file_tags.items():
+            if tag_to_remove in tags:
+                tags.remove(tag_to_remove)
+                removed_from.append(filename)
+
+        if removed_from:
+            embed = discord.Embed(
+                title="🏷️ Tag Gently Lifted",
+                description=f"Removed `{tag_to_remove}` from these songs:\n\n" +
+                            "\n".join(f"• {file}" for file in removed_from),
+                color=discord.Color.from_str("#ffd1dc")  # Petal pink
+            )
+            embed.set_footer(text="🌼 Like flowers shedding petals to the wind...")
+            await loading_message.edit(content=None, embed=embed)
+        else:
+            embed = discord.Embed(
+                title="🌫️ No Songs Found",
+                description=f"No songs were carrying the tag `{tag_to_remove}` 🌙",
+                color=discord.Color.from_str("#d3d3f3")  # Pale lilac
+            )
+            await loading_message.edit(content=None, embed=embed)
 
 @bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
