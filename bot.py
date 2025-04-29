@@ -888,7 +888,7 @@ async def listtags(ctx):
 
 
 
-@bot.command(aliases=["untag", "removetag", "cleartags"])
+@bot.command(aliases=["untag", "deletetag", "cleartags"])
 async def removetag(ctx, *args):
     """Removes all tags from specified songs, or removes a specific tag from all songs."""
     if not args:
