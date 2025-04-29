@@ -83,8 +83,8 @@ async def help(ctx):
                     "🔖 **!tag** – Let your songs blossom with custom tags like 'sunrise', 'cozy', or 'adventure'.\n"
                     "💚 **!playbytag** – Play all songs sharing the same spark of light.\n"
                     "📑 **!listtags** – See the beautiful constellation of tags you've created."
-                )
                     "🌿 **!removetag** – Breeze away a tag or free songs from all their labels. Alias: untag."
+                )
             elif "Utility" in choice:
                 embed.title = "🛠️ Utility – Stay connected with ease"
                 embed.description = (
