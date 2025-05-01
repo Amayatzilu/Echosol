@@ -1,6 +1,5 @@
 import os
 import discord
-import json
 from discord.ext import commands
 import yt_dlp as youtube_dl
 import asyncio
@@ -90,9 +89,6 @@ async def help(ctx):
                     "🔗 **!join** – Call down a beam of warmth — Echosol arrives, heart first.\n"
                     "🚪 **!leave** – Let the light return to the stars\n"
                     "🧺 **!clearqueue** – Empty the queue and start fresh. Alias: cq\n"
-                    "📍 **!addmc** – Light this channel with music magic.\n"
-                    "🧹 **!removemc** – Gently lift the music glow from this channel.\n"
-                    "🗂️ **!listmc** – See which places are kissed by sound.\n"
                     "💡 **!help** – You're never alone – revisit this guide anytime."
                 )
 
@@ -146,129 +142,6 @@ uploaded_files = []  # List to store uploaded files
 file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
 pending_tag_uploads = {}
 last_now_playing_message = None
-
-ALLOWED_CHANNELS_FILE = "allowed_channels.json"
-
-# Ensure allowed_channels.json exists and initializes new guilds with mode "all"
-if not os.path.exists(ALLOWED_CHANNELS_FILE):
-    with open(ALLOWED_CHANNELS_FILE, "w") as f:
-        json.dump({}, f)
-
-@bot.command(aliases=["allowhere", "addmc"])
-@commands.has_permissions(manage_channels=True)
-async def addmusicchannel(ctx):
-    """Adds the current channel to the list of allowed music channels."""
-    with open(ALLOWED_CHANNELS_FILE, "r") as f:
-        allowed_data = json.load(f)
-
-    guild_id = str(ctx.guild.id)
-    channel_id = str(ctx.channel.id)
-
-    if guild_id not in allowed_data:
-        allowed_data[guild_id] = {"channels": [], "mode": "all"}
-
-    guild_data = allowed_data[guild_id]
-    already_in = channel_id in guild_data["channels"]
-
-    # If the mode was "all", this is the first custom addition
-    first_add = guild_data["mode"] == "all"
-
-    if not already_in:
-        guild_data["channels"].append(channel_id)
-        guild_data["mode"] = "custom"
-
-        with open(ALLOWED_CHANNELS_FILE, "w") as f:
-            json.dump(allowed_data, f, indent=2)
-
-        if first_add:
-            await ctx.send(
-                f":rainbow: This space now sings with light! `{channel.name}` is ready for Echosol’s melodies. :notes:\n"
-                f"🔒 From now on, only approved channels will be able to use music features.\n"
-                f"✨ Use `!addmc` in more channels to share the glow!"
-            )
-        else:
-            await ctx.send("☀️ This channel has been added to the list of musical sanctuaries!")
-    else:
-        await ctx.send("🌤️ This channel already basks in the music’s light.")
-
-@bot.command(aliases=["removemc"])
-@commands.has_permissions(administrator=True)
-async def removemusicchannel(ctx):
-    """Removes the current channel from the allowed music channels and resets mode if none remain."""
-    try:
-        with open(ALLOWED_CHANNELS_FILE, "r") as f:
-            allowed_data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        allowed_data = {}
-
-    guild_id = str(ctx.guild.id)
-    channel_id = str(ctx.channel.id)
-
-    if guild_id not in allowed_data or channel_id not in allowed_data[guild_id]["channels"]:
-        await ctx.send("⚠️ This channel wasn't tuned into the musical flow. 🎧")
-        return
-
-    allowed_data[guild_id]["channels"].remove(channel_id)
-
-    # Reset to "all" if no channels remain
-    if not allowed_data[guild_id]["channels"]:
-        allowed_data[guild_id]["mode"] = "all"
-        await ctx.send(
-            f"🌙 The light dims gently in `{ctx.channel.name}` — and now, all channels are open again to the music. ✨"
-        )
-    else:
-        await ctx.send(
-            f"🌙 The light dims gently in `{ctx.channel.name}` – music access has been lifted. 💫"
-        )
-
-    with open(ALLOWED_CHANNELS_FILE, "w") as f:
-        json.dump(allowed_data, f, indent=2)
-
-@bot.command(aliases=["listmc"])
-@commands.has_permissions(administrator=True)
-async def listmusicchannels(ctx):
-    """Lists allowed music channels for this server."""
-    channels = list_allowed_channels(ctx.guild.id)
-    if not channels:
-        await ctx.send("🌻 This place is still in silence. Use !addmc in a channel to warm it with your musical sunshine. ☀️")
-        return
-    names = [ctx.guild.get_channel(cid).mention for cid in channels if ctx.guild.get_channel(cid)]
-    await ctx.send(f"🎵 Echosol shines in:\n{', '.join(names)}")
-
-@bot.check
-async def is_channel_allowed(ctx):
-    try:
-        with open(ALLOWED_CHANNELS_FILE, "r") as f:
-            allowed_data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return True  # Fail-safe: allow all if the file is missing or broken
-
-    guild_id = str(ctx.guild.id)
-    if guild_id not in allowed_data:
-        return True  # Default to allowing all channels
-
-    guild_data = allowed_data[guild_id]
-    if guild_data.get("mode") == "all":
-        return True  # All channels allowed
-
-    return str(ctx.channel.id) in guild_data.get("channels", [])
-
-    guild_id = str(ctx.guild.id)
-    return guild_id in allowed_data and str(ctx.channel.id) in allowed_data[guild_id]
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send("🌙 This channel hasn’t been tuned for music magic yet.\n"
-                       "Use `!addmc` right here to let the sunshine in. ☀️🎶")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("⚠️ Oops! You missed something important in your command. Try again with all parts included.")
-    elif isinstance(error, commands.CommandNotFound):
-        await ctx.send("❓ That tune doesn’t exist in our library. Try `!help` to see all available commands! 💫")
-    else:
-        # Log the error in your console and notify user something went wrong
-        print(f"⚠️ Unexpected error: {error}")
-        await ctx.send("💔 Something dimmed the lights... but we’re working on it! Try again or check the logs.")
 
 @bot.event
 async def on_message(message):
