@@ -91,6 +91,10 @@ async def help(ctx):
                     "🔗 **!join** – Call down a beam of warmth — Echosol arrives, heart first.\n"
                     "🚪 **!leave** – Let the light return to the stars\n"
                     "🧺 **!clearqueue** – Empty the queue and start fresh. Alias: cq\n"
+                    "📍 **!addmc** – Light this channel with music magic.\n"
+                    "🧹 **!removemc** – Gently lift the music glow from this channel.\n"
+                    "🗂️ **!listmc** – See which places are kissed by sound.\n"
+                    "💫 **!clearallmc** – Wipe all musical permissions and begin anew."
                     "💡 **!help** – You're never alone – revisit this guide anytime."
                 )
 
@@ -144,6 +148,73 @@ uploaded_files = []  # List to store uploaded files
 file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
 pending_tag_uploads = {}
 
+@bot.command(aliases=["addmc"])
+@commands.has_permissions(administrator=True)
+async def addmusicchannel(ctx):
+    """Adds the current channel to the allowed music channels."""
+    channel = ctx.channel
+    if add_allowed_channel(ctx.guild.id, channel.id):
+        await ctx.send(f"🌈 This space now sings with light! `{channel.name}` is ready for Echosol’s melodies. 🎶")
+    else:
+        await ctx.send("⚠️ This channel already glows. 🌟")
+
+@bot.command(aliases=["removemc"])
+@commands.has_permissions(administrator=True)
+async def removemusicchannel(ctx):
+    """Removes the current channel from the allowed music channels."""
+    channel = ctx.channel
+    if remove_allowed_channel(ctx.guild.id, channel.id):
+        await ctx.send(f"🌙 The light dims gently in `{channel.name}` – music access has been lifted. 💫")
+    else:
+        await ctx.send("⚠️ This channel wasn't tuned into the musical flow. 🎧")
+
+@bot.command(aliases=["listmc"])
+@commands.has_permissions(administrator=True)
+async def listmusicchannels(ctx):
+    """Lists allowed music channels for this server."""
+    channels = list_allowed_channels(ctx.guild.id)
+    if not channels:
+        await ctx.send("🌻 This place is still in silence. Use !addmc in a channel to warm it with your musical sunshine. ☀️")
+        return
+    names = [ctx.guild.get_channel(cid).mention for cid in channels if ctx.guild.get_channel(cid)]
+    await ctx.send(f"🎵 Echosol shines in:\n{', '.join(names)}")
+
+@bot.command(aliases=["clearallmc"])
+@commands.has_permissions(administrator=True)
+async def clearallmusicchannels(ctx):
+    """Clears all allowed music channels for this server."""
+    clear_all_channels(ctx.guild.id)
+    await ctx.send("🧹 All music channels have been reset. Ready for a new journey of sound and sunshine. ☀️")
+
+@bot.check
+async def is_channel_allowed(ctx):
+    try:
+        with open("allowed_channels.json", "r") as f:
+            allowed_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False  # No allowed channels set yet
+
+    guild_id = str(ctx.guild.id)
+    return guild_id in allowed_data and str(ctx.channel.id) in allowed_data[guild_id]
+
+if ctx.guild is None:
+    await ctx.send("🌙 Echosol shines brightest in servers—this command can’t be used in DMs.")
+    return
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send("🌙 This channel hasn’t been tuned for music magic yet.\n"
+                       "Use `!addmc` right here to let the sunshine in. ☀️🎶")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("⚠️ Oops! You missed something important in your command. Try again with all parts included.")
+    elif isinstance(error, commands.CommandNotFound):
+        await ctx.send("❓ That tune doesn’t exist in our library. Try `!help` to see all available commands! 💫")
+    else:
+        # Log the error in your console and notify user something went wrong
+        print(f"⚠️ Unexpected error: {error}")
+        await ctx.send("💔 Something dimmed the lights... but we’re working on it! Try again or check the logs.")
+
 @bot.event
 async def on_message(message):
     global uploaded_files, file_tags, pending_tag_uploads
@@ -176,6 +247,15 @@ async def on_message(message):
 
     # Handle tag replies with gentle guidance 💖
     if message.reference and message.author.id in pending_tag_uploads:
+        try:
+            replied_message = await message.channel.fetch_message(message.reference.message_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return  # Ignore if the message can't be fetched
+
+        # Only accept replies to bot's upload message
+        if replied_message.author.id != bot.user.id or not replied_message.content.startswith("🌟 Thank you for sharing your musical light!"):
+            return
+
         tags = [t.strip().lower() for t in message.content.replace(",", " ").split()]
         if not tags:
             await message.channel.send("⚠️ Oops! No tags found. Try again with some beautiful labels 🌻")
@@ -427,7 +507,7 @@ async def resume(ctx):
         ctx.voice_client.resume()
         await ctx.send("💓 The melody awakens — your rhythm pulses with light once more!")
 
-@bot.command(aliases=["nextplease", "skippy"])
+@bot.command(aliases=["nextplease", "next", "skippy"])
 async def skip(ctx):
     """Skips the current song with a gleam 💫"""
     if ctx.voice_client and ctx.voice_client.is_playing():
