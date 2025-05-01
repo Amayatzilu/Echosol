@@ -849,7 +849,7 @@ async def tag(ctx, *args):
     else:
         await ctx.send("☁️ No songs were tagged this time. Try again with different numbers or tags!")
 
-@bot.command(aliases=["tagplay", "greenflag"])
+@bot.command(aliases=["tagplay", "greenflag", "pt"])
 async def playbytag(ctx, *search_tags):
     """Plays all uploaded songs that match one or more tags. Usage: !playbytag chill vibe"""
     if not search_tags:
