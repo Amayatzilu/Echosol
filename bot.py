@@ -6,6 +6,7 @@ import asyncio
 import random
 from mutagen.mp3 import MP3
 from mutagen.wave import WAVE
+last_now_playing_message = None
 
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
@@ -13,8 +14,6 @@ TOKEN = os.getenv("TOKEN")
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True  # Allow the bot to track server members (including itself)
-
-bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Define music folder path for uploaded files
 MUSIC_FOLDER = "downloads/"
@@ -94,7 +93,6 @@ async def help(ctx):
                     "📍 **!addmc** – Light this channel with music magic.\n"
                     "🧹 **!removemc** – Gently lift the music glow from this channel.\n"
                     "🗂️ **!listmc** – See which places are kissed by sound.\n"
-                    "💫 **!clearallmc** – Wipe all musical permissions and begin anew."
                     "💡 **!help** – You're never alone – revisit this guide anytime."
                 )
 
@@ -148,25 +146,42 @@ uploaded_files = []  # List to store uploaded files
 file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
 pending_tag_uploads = {}
 
-@bot.command(aliases=["addmc"])
-@commands.has_permissions(administrator=True)
-async def addmusicchannel(ctx):
-    """Adds the current channel to the allowed music channels."""
-    channel = ctx.channel
-    if add_allowed_channel(ctx.guild.id, channel.id):
-        await ctx.send(f"🌈 This space now sings with light! `{channel.name}` is ready for Echosol’s melodies. 🎶")
-    else:
-        await ctx.send("⚠️ This channel already glows. 🌟")
+@bot.command(aliases=["addmusicchannel", "allowhere", "addmc"])
+@commands.has_permissions(manage_channels=True)
+async def addmc(ctx):
+    """Adds the current channel to the list of allowed music channels."""
+    with open(ALLOWED_CHANNELS_FILE, "r") as f:
+        allowed_data = json.load(f)
 
-@bot.command(aliases=["removemc"])
-@commands.has_permissions(administrator=True)
-async def removemusicchannel(ctx):
-    """Removes the current channel from the allowed music channels."""
-    channel = ctx.channel
-    if remove_allowed_channel(ctx.guild.id, channel.id):
-        await ctx.send(f"🌙 The light dims gently in `{channel.name}` – music access has been lifted. 💫")
+    guild_id = str(ctx.guild.id)
+    channel_id = str(ctx.channel.id)
+
+    if guild_id not in allowed_data:
+        allowed_data[guild_id] = {"channels": [], "mode": "all"}
+
+    guild_data = allowed_data[guild_id]
+    already_in = channel_id in guild_data["channels"]
+
+    # If the mode was "all", this is the first custom addition
+    first_add = guild_data["mode"] == "all"
+
+    if not already_in:
+        guild_data["channels"].append(channel_id)
+        guild_data["mode"] = "custom"
+
+        with open(ALLOWED_CHANNELS_FILE, "w") as f:
+            json.dump(allowed_data, f, indent=2)
+
+        if first_add:
+            await ctx.send(
+                f":rainbow: This space now sings with light! `{channel.name}` is ready for Echosol’s melodies. :notes:\n"
+                f"🔒 From now on, only approved channels will be able to use music features.\n"
+                f"✨ Use `!addmc` in more channels to share the glow!"
+            )
+        else:
+            await ctx.send("☀️ This channel has been added to the list of musical sanctuaries!")
     else:
-        await ctx.send("⚠️ This channel wasn't tuned into the musical flow. 🎧")
+        await ctx.send("🌤️ This channel already basks in the music’s light.")
 
 @bot.command(aliases=["listmc"])
 @commands.has_permissions(administrator=True)
@@ -178,13 +193,6 @@ async def listmusicchannels(ctx):
         return
     names = [ctx.guild.get_channel(cid).mention for cid in channels if ctx.guild.get_channel(cid)]
     await ctx.send(f"🎵 Echosol shines in:\n{', '.join(names)}")
-
-@bot.command(aliases=["clearallmc"])
-@commands.has_permissions(administrator=True)
-async def clearallmusicchannels(ctx):
-    """Clears all allowed music channels for this server."""
-    clear_all_channels(ctx.guild.id)
-    await ctx.send("🧹 All music channels have been reset. Ready for a new journey of sound and sunshine. ☀️")
 
 @bot.check
 async def is_channel_allowed(ctx):
@@ -348,6 +356,19 @@ async def play_next(ctx):
         await ctx.send("🌈 The musical journey is paused, but the stage awaits. ✨ Use `!play` when you're ready to glow again!")
         return
 
+    global last_now_playing_message
+    #Fade out the previous song display if it exists
+    if last_now_playing_messge:
+        try:
+            embed = last_now_playing_message.embeds[0]
+            embed.title = "🌙 Faded Glow"
+            embed.description = "The melody has floated into the night..."
+            embed.set_field_at(0, name="Progress", value="💤 `Finished`", inline=False)
+            await last_now_playing_message.edit(embed=embed)
+        except Exception:
+            pass
+        last_now_playing_message = None
+
     song_data = song_queue.pop(0)
     is_temp_youtube = False
 
@@ -448,6 +469,7 @@ async def play_next(ctx):
             inline=False
         )
     message = await ctx.send(embed=embed)
+    last_now_playing_message = message
 
     # Live update
     if duration:
