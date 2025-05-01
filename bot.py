@@ -281,17 +281,16 @@ async def play_next(ctx):
         return
 
     global last_now_playing_message
-    #Fade out the previous song display if it exists
+    # Gently mark the previous song as finished
     if last_now_playing_message:
         try:
             embed = last_now_playing_message.embeds[0]
-            embed.title = "🌙 Faded Glow"
-            embed.description = "The melody has floated into the night..."
-            embed.set_field_at(0, name="Progress", value="💤 `Finished`", inline=False)
+            embed.set_field_at(0, name="Progress", value="💤 This song has finished playing. `Complete`", inline=False)
             await last_now_playing_message.edit(embed=embed)
         except Exception:
             pass
         last_now_playing_message = None
+
 
     song_data = song_queue.pop(0)
     is_temp_youtube = False
@@ -420,9 +419,11 @@ async def play_next(ctx):
 
         await asyncio.sleep(6)
         try:
-            await message.edit(content="🌙 The glow fades gently into the night...", embed=None)
+            embed.set_field_at(0, name="Progress", value="🌙 The glow fades gently... `Complete`", inline=False)
+            await message.edit(embed=embed)
         except discord.HTTPException:
             pass
+
     else:
         await message.edit(content=f"▶️ Now playing: **{song_title}**")
 
