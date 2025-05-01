@@ -6,7 +6,6 @@ import asyncio
 import random
 from mutagen.mp3 import MP3
 from mutagen.wave import WAVE
-last_now_playing_message = None
 
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
@@ -145,10 +144,18 @@ volume_level = 1.0  # Default volume level
 uploaded_files = []  # List to store uploaded files
 file_tags = {}  # Structure: {'filename': ['tag1', 'tag2'], ...}
 pending_tag_uploads = {}
+last_now_playing_message = None
 
-@bot.command(aliases=["addmusicchannel", "allowhere", "addmc"])
+ALLOWED_CHANNELS_FILE = "allowed_channels.json"
+
+# Ensure allowed_channels.json exists and initializes new guilds with mode "all"
+if not os.path.exists(ALLOWED_CHANNELS_FILE):
+    with open(ALLOWED_CHANNELS_FILE, "w") as f:
+        json.dump({}, f)
+
+@bot.command(aliases=["allowhere", "addmc"])
 @commands.has_permissions(manage_channels=True)
-async def addmc(ctx):
+async def addmusicchannel(ctx):
     """Adds the current channel to the list of allowed music channels."""
     with open(ALLOWED_CHANNELS_FILE, "r") as f:
         allowed_data = json.load(f)
@@ -183,6 +190,39 @@ async def addmc(ctx):
     else:
         await ctx.send("🌤️ This channel already basks in the music’s light.")
 
+@bot.command(aliases=["removemc"])
+@commands.has_permissions(administrator=True)
+async def removemusicchannel(ctx):
+    """Removes the current channel from the allowed music channels and resets mode if none remain."""
+    try:
+        with open(ALLOWED_CHANNELS_FILE, "r") as f:
+            allowed_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        allowed_data = {}
+
+    guild_id = str(ctx.guild.id)
+    channel_id = str(ctx.channel.id)
+
+    if guild_id not in allowed_data or channel_id not in allowed_data[guild_id]["channels"]:
+        await ctx.send("⚠️ This channel wasn't tuned into the musical flow. 🎧")
+        return
+
+    allowed_data[guild_id]["channels"].remove(channel_id)
+
+    # Reset to "all" if no channels remain
+    if not allowed_data[guild_id]["channels"]:
+        allowed_data[guild_id]["mode"] = "all"
+        await ctx.send(
+            f"🌙 The light dims gently in `{ctx.channel.name}` — and now, all channels are open again to the music. ✨"
+        )
+    else:
+        await ctx.send(
+            f"🌙 The light dims gently in `{ctx.channel.name}` – music access has been lifted. 💫"
+        )
+
+    with open(ALLOWED_CHANNELS_FILE, "w") as f:
+        json.dump(allowed_data, f, indent=2)
+
 @bot.command(aliases=["listmc"])
 @commands.has_permissions(administrator=True)
 async def listmusicchannels(ctx):
@@ -197,10 +237,20 @@ async def listmusicchannels(ctx):
 @bot.check
 async def is_channel_allowed(ctx):
     try:
-        with open("allowed_channels.json", "r") as f:
+        with open(ALLOWED_CHANNELS_FILE, "r") as f:
             allowed_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        return False  # No allowed channels set yet
+        return True  # Fail-safe: allow all if the file is missing or broken
+
+    guild_id = str(ctx.guild.id)
+    if guild_id not in allowed_data:
+        return True  # Default to allowing all channels
+
+    guild_data = allowed_data[guild_id]
+    if guild_data.get("mode") == "all":
+        return True  # All channels allowed
+
+    return str(ctx.channel.id) in guild_data.get("channels", [])
 
     guild_id = str(ctx.guild.id)
     return guild_id in allowed_data and str(ctx.channel.id) in allowed_data[guild_id]
