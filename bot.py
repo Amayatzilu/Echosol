@@ -197,10 +197,6 @@ async def is_channel_allowed(ctx):
     guild_id = str(ctx.guild.id)
     return guild_id in allowed_data and str(ctx.channel.id) in allowed_data[guild_id]
 
-if ctx.guild is None:
-    await ctx.send("🌙 Echosol shines brightest in servers—this command can’t be used in DMs.")
-    return
-
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CheckFailure):
