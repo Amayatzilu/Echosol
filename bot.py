@@ -282,7 +282,7 @@ async def play_next(ctx):
 
     global last_now_playing_message
     #Fade out the previous song display if it exists
-    if last_now_playing_messge:
+    if last_now_playing_message:
         try:
             embed = last_now_playing_message.embeds[0]
             embed.title = "🌙 Faded Glow"
@@ -907,8 +907,6 @@ async def listtags(ctx):
     embed.set_footer(text="Tag your uploads to help them shine brighter ✨")
 
     await ctx.send(embed=embed)
-
-
 
 @bot.command(aliases=["untag", "deletetag", "cleartags"])
 async def removetag(ctx, *args):
