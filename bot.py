@@ -4,6 +4,7 @@ from discord.ext import commands
 import yt_dlp as youtube_dl
 import asyncio
 import random
+import json
 from mutagen.mp3 import MP3
 from mutagen.wave import WAVE
 
