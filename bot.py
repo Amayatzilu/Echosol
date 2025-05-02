@@ -6,6 +6,8 @@ import asyncio
 import random
 from mutagen.mp3 import MP3
 from mutagen.wave import WAVE
+from discord.ui import View, Select, Button
+from discord import Interaction
 
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
@@ -27,9 +29,6 @@ if cookie_data:
         f.write(cookie_data)
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
-
-from discord.ui import View, Select
-from discord import Interaction
 
 @bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
