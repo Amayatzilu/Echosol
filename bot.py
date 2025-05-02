@@ -386,7 +386,7 @@ async def play_next(ctx):
 @bot.command(aliases=["mixitup", "mischen", "shuff"])
 async def shuffle(ctx):
     """Shuffles the current music queue with joy 🌻"""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     queue = song_queue_by_guild.get(guild_id, [])
     if len(queue) > 1:
         random.shuffle(queue)
@@ -434,7 +434,7 @@ async def volume(ctx, volume: int):
 @bot.command(aliases=["whatsnext", "q"])
 async def queue(ctx):
     """Displays the current queue with pagination and a shuffle button."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     queue_list = song_queue_by_guild.get(guild_id, [])
 
     if not queue_list:
@@ -510,7 +510,7 @@ async def queue(ctx):
 @bot.command(aliases=["whatwegot"])
 async def listsongs(ctx):
     """Lists available uploaded songs with optional tag filter, pagination, and actions."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
     file_tags = file_tags_by_guild.get(guild_id, {})
 
@@ -679,7 +679,7 @@ async def playalluploads(ctx):
 @bot.command(aliases=["delete", "removeupload", "du"])
 async def deleteupload(ctx, number: int):
     """Removes a specific uploaded song by its number (from !listsongs)."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
 
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
     file_tags = file_tags_by_guild.get(guild_id, {})
@@ -710,7 +710,7 @@ async def deleteupload(ctx, number: int):
 @bot.command(aliases=["pp", "seite", "page", "playpage"])
 async def playbypage(ctx, *pages):
     """Plays one or more pages of uploaded songs."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
 
     if not uploaded_files:
@@ -760,7 +760,7 @@ async def playbypage(ctx, *pages):
 @bot.command(aliases=["number", "playnumber", "n"])
 async def playbynumber(ctx, *numbers):
     """Plays one or multiple uploaded songs using their numbers (per-server)."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
     song_queue = song_queue_by_guild.setdefault(guild_id, [])
 
@@ -801,7 +801,7 @@ async def playbynumber(ctx, *numbers):
 @bot.command(aliases=["flag", "etikett"])
 async def tag(ctx, *args):
     """Tags one or more uploaded songs. Usage: !tag <number(s)> <tags...> (per-server)"""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
     file_tags = file_tags_by_guild.setdefault(guild_id, {})
 
@@ -842,7 +842,7 @@ async def tag(ctx, *args):
 @bot.command(aliases=["tagplay", "greenflag", "pt"])
 async def playbytag(ctx, *search_tags):
     """Plays all uploaded songs that match one or more tags. Usage: !playbytag chill vibe (per-server)"""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
     file_tags = file_tags_by_guild.get(guild_id, {})
 
@@ -878,7 +878,7 @@ async def playbytag(ctx, *search_tags):
 @bot.command(aliases=["whiteflag", "viewtags", "showtags"])
 async def listtags(ctx):
     """Shows all tags currently in use for uploaded songs (per-server)."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     file_tags = file_tags_by_guild.get(guild_id, {})
 
     if not file_tags:
@@ -909,7 +909,7 @@ async def listtags(ctx):
 @bot.command(aliases=["untag", "deletetag", "cleartags"])
 async def removetag(ctx, *args):
     """Removes all tags from specified songs, or removes a specific tag from all songs."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     file_tags = file_tags_by_guild.setdefault(guild_id, {})
     uploaded_files = uploaded_files_by_guild.setdefault(guild_id, [])
 
@@ -991,7 +991,7 @@ async def removetag(ctx, *args):
 @bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
     """Stops playback and clears the queue."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     song_queue_by_guild[guild_id] = []
     song_queue.clear()  # Clear the queue
 
@@ -1004,7 +1004,7 @@ async def stop(ctx):
 @bot.command(aliases=["spankies", "cq"])
 async def clearqueue(ctx):
     """Clears the music queue for this server only."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     song_queue_by_guild[guild_id] = []  # Clear this server's queue only
 
     await ctx.send("🌈 The queue has been cleared with care — a fresh breeze of musical sunshine awaits. 💛")
@@ -1012,7 +1012,7 @@ async def clearqueue(ctx):
 @bot.command(aliases=["exterminate", "cu"])
 async def clearuploads(ctx):
     """Deletes all uploaded files for this server to free space."""
-    guild_id = str(ctx.guild.id)
+    guild_id = ctx.guild.id
     uploaded_files_by_guild.setdefault(guild_id, [])
     file_tags_by_guild.setdefault(guild_id, {})
 
