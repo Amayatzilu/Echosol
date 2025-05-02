@@ -727,56 +727,6 @@ async def playbypage(ctx, *pages):
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.command(aliases=["pp", "seite", "page", "playpage"])
-async def playbypage(ctx, *pages):
-    """Plays one or more pages of uploaded songs."""
-    guild_id = ctx.guild.id
-    uploaded_files = uploaded_files_by_guild.setdefault(guild_id, [])
-
-    if not uploaded_files:
-        await ctx.send("🌥️ No sunshine yet! Upload a song to brighten the playlist.")
-        return
-
-    per_page = 10
-    total_pages = (len(uploaded_files) + per_page - 1) // per_page
-    added = []
-
-    if not pages:
-        await ctx.send("🌻 Please share one or more page numbers to bring the sunshine! (e.g. `!page 1 2 3`)")
-        return
-
-    for page_str in pages:
-        try:
-            page = int(page_str)
-            if 1 <= page <= total_pages:
-                start = (page - 1) * per_page
-                end = start + per_page
-                for filename in uploaded_files[start:end]:
-                    song_path = os.path.join(MUSIC_FOLDER, filename)
-                    song_queue_by_guild.setdefault(guild_id, []).append(song_path)
-                    added.append(filename)
-            else:
-                await ctx.send(f"⚠️ Page {page} is out of range and couldn’t catch the breeze. Skipping.")
-        except ValueError:
-            await ctx.send(f"🌥️ `{page_str}` isn’t a valid number. Let’s float past it.")
-
-    if not added:
-        await ctx.send("❌ No songs danced into the queue. Try again with valid pages.")
-        return
-
-    await ctx.send(f"🎶✨ Added **{len(added)}** radiant tracks from page(s) {', '.join(pages)} to your musical journey!")
-
-    # Voice connection
-    if not ctx.voice_client:
-        if ctx.author.voice:
-            await ctx.author.voice.channel.connect()
-        else:
-            await ctx.send("🌙 You need to be in a voice channel to let the melodies flow.")
-            return
-
-    if not ctx.voice_client.is_playing():
-        await play_next(ctx)
-
 @bot.command(aliases=["number", "playnumber", "n"])
 async def playbynumber(ctx, *numbers):
     """Plays one or multiple uploaded songs using their numbers (per-server)."""
