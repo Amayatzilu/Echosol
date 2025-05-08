@@ -234,7 +234,7 @@ async def on_message(message):
         del pending_tag_uploads[guild_id][user_id]
         save_upload_data()  # ✅ Save after tagging
 
-@bot.command(aliases=["playwithme", "connect", "verbinden"])
+@bot.command(aliases=["playwithme", "connect", "verbinden", "kisses"])
 async def join(ctx):
     """Joins a voice channel."""
     if ctx.author.voice:
