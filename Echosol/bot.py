@@ -143,7 +143,6 @@ file_tags_by_guild = defaultdict(dict)
 uploaded_files_by_guild = defaultdict(list)
 song_queue_by_guild = defaultdict(list)
 last_now_playing_message_by_guild = defaultdict(lambda: None)
-
 volume_levels_by_guild = defaultdict(lambda: 1.0)
 
 SAVE_FILE = "uploads_data.json"
@@ -172,6 +171,8 @@ def load_upload_data():
         print("[Startup] No saved upload data found. Starting fresh.")
     except Exception as e:
         print(f"[Load Error] Could not load upload data: {e}")
+
+load_upload_data()
 
 @bot.event
 async def on_message(message):
