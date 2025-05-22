@@ -386,21 +386,32 @@ async def play_next(ctx):
     message = await ctx.send(embed=embed)
     last_now_playing_message_by_guild[guild_id] = message
 
-    if duration:
+        if duration:
         for second in range(1, duration + 1):
             bar = progress_bar_func(second, duration, pulse_state=second)
             timestamp = f"{second // 60}:{second % 60:02d} / {duration // 60}:{duration % 60:02d}"
-            try:
-                embed.set_field_at(0, name="Progress", value=f"{bar} `{timestamp}`", inline=False)
-                await message.edit(embed=embed)
-            except discord.HTTPException:
-                pass
+
+            # Only update every 5 seconds or at the final second
+            if second % 5 == 0 or second == duration:
+                try:
+                    embed.set_field_at(0, name="Progress", value=f"{bar} `{timestamp}`", inline=False)
+                    await message.edit(embed=embed)
+                except discord.HTTPException:
+                    pass
+
             await asyncio.sleep(1)
 
         try:
             embed.title = "🌟 Finale Glow"
             embed.description = f"**{song_title}** just wrapped its dance of light!"
             embed.set_field_at(0, name="Progress", value="✨✨✨✨✨✨✨✨✨✨ `Finished`", inline=False)
+            await message.edit(embed=embed)
+        except discord.HTTPException:
+            pass
+
+        await asyncio.sleep(6)
+        try:
+            embed.set_field_at(0, name="Progress", value="🌙 The glow fades gently... `Complete`", inline=False)
             await message.edit(embed=embed)
         except discord.HTTPException:
             pass
