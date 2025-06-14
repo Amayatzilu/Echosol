@@ -10,6 +10,7 @@ from mutagen.mp3 import MP3
 from mutagen.wave import WAVE
 from discord.ui import View, Select, Button
 from discord import Interaction
+from datetime import datetime
 
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
@@ -31,6 +32,9 @@ if cookie_data:
         f.write(cookie_data)
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
+
+def get_current_form():
+    now = datetime.utcnow()
 
 @bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
@@ -308,11 +312,11 @@ async def play_next(ctx):
         await ctx.send("🌈 The musical journey is paused, but the stage awaits. ✨ Use `!play` when you're ready to glow again!")
         return
 
-    # Mark this guild as active
+    # Mark guild activity
     usage_counters[guild_id] += 1
     is_high_usage = usage_counters[guild_id] >= 30
 
-    # Clear old message
+    # Clean up old embed if any
     if last_now_playing_message_by_guild.get(guild_id):
         try:
             embed = last_now_playing_message_by_guild[guild_id].embeds[0]
@@ -322,9 +326,11 @@ async def play_next(ctx):
             pass
         last_now_playing_message_by_guild[guild_id] = None
 
+    # Get next song
     song_data = song_queue_by_guild[guild_id].pop(0)
     is_temp_youtube = False
 
+    # Download or load audio
     if isinstance(song_data, tuple):
         original_url, song_title = song_data
         try:
@@ -337,11 +343,9 @@ async def play_next(ctx):
             await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
             return await play_next(ctx)
         ffmpeg_options = FFMPEG_LOCAL_OPTIONS
-        use_rainbow_bar = True
     else:
         song_url = song_data
         song_title = os.path.basename(song_url)
-        use_rainbow_bar = False
         try:
             audio = MP3(song_url) if song_url.endswith(".mp3") else WAVE(song_url)
             duration = int(audio.info.length) if audio and audio.info else 0
@@ -349,6 +353,7 @@ async def play_next(ctx):
             duration = 0
         ffmpeg_options = FFMPEG_LOCAL_OPTIONS
 
+    # Handle cleanup after song finishes
     def after_play(error):
         if error:
             print(f"⚠️ Playback error: {error}")
@@ -359,28 +364,78 @@ async def play_next(ctx):
                 print(f"[Cleanup Error] Could not delete file: {e}")
         asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
+    # Start playing
     vc.play(discord.FFmpegPCMAudio(song_url, **ffmpeg_options), after=after_play)
     vc.source = discord.PCMVolumeTransformer(vc.source, volume_levels_by_guild[guild_id])
 
-    def pulsing_heartbeats_bar(current, total, segments=10, pulse_state=0):
+    # Seasonal system starts here
+    from datetime import datetime
+
+    def get_current_form():
+        now = datetime.utcnow()
+        month = now.month
+        day = now.day
+        if (month == 3 and day >= 21) or (month == 4):
+            return "vernalight"
+        elif (month == 6 and day >= 21) or (month == 7):
+            return "solshine"
+        elif (month == 9 and day >= 21) or (month == 10):
+            return "fallchord"
+        elif (month == 12 and day >= 21) or (month == 1):
+            return "frostveil"
+        else:
+            return "default"
+
+    SEASONAL_FORMS = {
+        "vernalight": {
+            "name": "🌸 Vernalight Blossoms",
+            "color": 0xB3C7F9,
+            "bar_emojis": ['🌧️', '☔', '💧', '💮']
+        },
+        "solshine": {
+            "name": "🌞 Solshine Radiance",
+            "color": 0xFFD966,
+            "bar_emojis": ['☀️', '🌻', '🌼', '✨']
+        },
+        "fallchord": {
+            "name": "🍂 Fallchord Resonance",
+            "color": 0xFF9933,
+            "bar_emojis": ['🍁', '🍂', '🦇', '🎃']
+        },
+        "frostveil": {
+            "name": "❄️ Frostveil Stillness",
+            "color": 0x99CCFF,
+            "bar_emojis": ['❄️', '💙', '🌨️', '🧊']
+        },
+        "default": {
+            "name": "🎵 Echosol Harmonies",
+            "color": 0xFFDB8A,
+            "bar_emojis": [
+                '<:echo2:1383471283076862037>',
+                '<:echo1:1383471280694497391>',
+                '<:echo4:1383471288500097065>',
+                '<:echo3:1383471285123813507>'
+            ]
+        }
+    }
+
+    current_form = get_current_form()
+    form_data = SEASONAL_FORMS.get(current_form, SEASONAL_FORMS["default"])
+
+    # Progress bar generator
+    def seasonal_progress_bar(current, total, segments=10, pulse_state=0):
         filled = int((current / total) * segments)
-        pulse_cycle = ['💖', '💗', '💓', '💞']
-        pulse = pulse_cycle[pulse_state % len(pulse_cycle)]
-        return ''.join("💛" if i < filled else pulse if i == filled else "🤍" for i in range(segments))
+        emojis = form_data["bar_emojis"]
+        pulse = emojis[pulse_state % len(emojis)]
+        return ''.join(emojis[0] if i < filled else pulse if i == filled else "▫️" for i in range(segments))
 
-    def rainbow_pulsing_bar(current, total, segments=10, pulse_state=0):
-        rainbow = ['❤️', '🧡', '💛', '💚', '💙', '💜']
-        filled = int((current / total) * segments)
-        pulse_cycle = ['💖', '💗', '💓', '💞']
-        pulse = pulse_cycle[pulse_state % len(pulse_cycle)]
-        return ''.join(rainbow[i % len(rainbow)] if i < filled else pulse if i == filled else "🤍" for i in range(segments))
+    progress_bar_func = seasonal_progress_bar
 
-    progress_bar_func = rainbow_pulsing_bar if use_rainbow_bar else pulsing_heartbeats_bar
-
+    # Initial embed
     embed = discord.Embed(
-        title="🌞 Echosol Radiance" if not use_rainbow_bar else "🌈 Streaming Light",
-        description=f"✨ **{song_title}** is glowing through your speakers!",
-        color=discord.Color.from_str("#ffc0cb") if not use_rainbow_bar else discord.Color.from_str("#ffd6ff")
+        title=form_data["name"],
+        description=f"🎶 **{song_title}** is playing!",
+        color=form_data["color"]
     )
 
     if duration:
@@ -389,6 +444,7 @@ async def play_next(ctx):
     message = await ctx.send(embed=embed)
     last_now_playing_message_by_guild[guild_id] = message
 
+    # Update progress loop
     if duration and not is_high_usage:
         for second in range(1, duration + 1):
             bar = progress_bar_func(second, duration, pulse_state=second)
@@ -403,6 +459,7 @@ async def play_next(ctx):
 
             await asyncio.sleep(1)
 
+        # Finale phase
         try:
             embed.title = "🌟 Finale Glow"
             embed.description = f"**{song_title}** just wrapped its dance of light!"
@@ -412,6 +469,7 @@ async def play_next(ctx):
             pass
 
         await asyncio.sleep(6)
+
         try:
             embed.set_field_at(0, name="Progress", value="🌙 The glow fades gently... `Complete`", inline=False)
             await message.edit(embed=embed)
