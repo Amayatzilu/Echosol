@@ -5,10 +5,12 @@ import yt_dlp as youtube_dl
 import asyncio
 import random
 import math
+import json
 from mutagen.mp3 import MP3
 from mutagen.wave import WAVE
 from discord.ui import View, Select, Button
 from discord import Interaction
+from datetime import datetime
 
 # Load environment variables (Ensure TOKEN is stored in Railway Variables or .env file)
 TOKEN = os.getenv("TOKEN")
@@ -30,6 +32,9 @@ if cookie_data:
         f.write(cookie_data)
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
+
+def get_current_form():
+    now = datetime.utcnow()
 
 @bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
@@ -111,7 +116,7 @@ async def help(ctx):
 
 # Configure YouTube downloader settings
 YDL_OPTIONS = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio[ext=m4a]/bestaudio/best',
     'noplaylist': 'False',
     'cookiefile': cookies_path,
     'postprocessors': [{
@@ -123,7 +128,7 @@ YDL_OPTIONS = {
     'quiet': True,
     'source_address': '0.0.0.0',
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
     },
 }
 
@@ -136,14 +141,42 @@ FFMPEG_LOCAL_OPTIONS = {
 }
 
 from collections import defaultdict
-
+usage_counters = defaultdict(int)
 pending_tag_uploads = defaultdict(dict)  # {guild_id: {user_id: [filenames]}}
 file_tags_by_guild = defaultdict(dict)
 uploaded_files_by_guild = defaultdict(list)
 song_queue_by_guild = defaultdict(list)
 last_now_playing_message_by_guild = defaultdict(lambda: None)
-
 volume_levels_by_guild = defaultdict(lambda: 1.0)
+
+SAVE_FILE = "uploads_data.json"
+
+def save_upload_data():
+    try:
+        data = {
+            "uploaded_files_by_guild": uploaded_files_by_guild,
+            "file_tags_by_guild": file_tags_by_guild,
+        }
+        with open(SAVE_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"[Save Error] Could not save upload data: {e}")
+
+def load_upload_data():
+    try:
+        with open(SAVE_FILE, "r") as f:
+            data = json.load(f)
+            for guild_id, files in data.get("uploaded_files_by_guild", {}).items():
+                uploaded_files_by_guild[int(guild_id)] = files
+            for guild_id, tags in data.get("file_tags_by_guild", {}).items():
+                file_tags_by_guild[int(guild_id)] = tags
+        print("[Startup] Upload data loaded successfully.")
+    except FileNotFoundError:
+        print("[Startup] No saved upload data found. Starting fresh.")
+    except Exception as e:
+        print(f"[Load Error] Could not load upload data: {e}")
+
+load_upload_data()
 
 @bot.event
 async def on_message(message):
@@ -174,6 +207,7 @@ async def on_message(message):
                 f"🎵 Uploaded: **{', '.join(new_files)}**\n"
                 f"💫 Please reply to this message with tags (like `chill`, `sunset`, `epic`). Separate with spaces or commas!"
             )
+            save_upload_data()  # ✅ Save after uploading
         return
 
     # Handle tag replies with gentle guidance 💖
@@ -203,8 +237,9 @@ async def on_message(message):
         )
 
         del pending_tag_uploads[guild_id][user_id]
+        save_upload_data()  # ✅ Save after tagging
 
-@bot.command(aliases=["playwithme", "connect", "verbinden"])
+@bot.command(aliases=["playwithme", "connect", "verbinden", "kisses"])
 async def join(ctx):
     """Joins a voice channel."""
     if ctx.author.voice:
@@ -270,7 +305,6 @@ async def play_next(ctx):
     guild_id = ctx.guild.id
     vc = ctx.voice_client
 
-    # Skip if something's already playing
     if vc and vc.is_playing():
         return
 
@@ -278,7 +312,11 @@ async def play_next(ctx):
         await ctx.send("🌈 The musical journey is paused, but the stage awaits. ✨ Use `!play` when you're ready to glow again!")
         return
 
-    # Gently update previous Now Playing embed
+    # Mark guild activity
+    usage_counters[guild_id] += 1
+    is_high_usage = usage_counters[guild_id] >= 30
+
+    # Clean up old embed if any
     if last_now_playing_message_by_guild.get(guild_id):
         try:
             embed = last_now_playing_message_by_guild[guild_id].embeds[0]
@@ -288,9 +326,11 @@ async def play_next(ctx):
             pass
         last_now_playing_message_by_guild[guild_id] = None
 
+    # Get next song
     song_data = song_queue_by_guild[guild_id].pop(0)
     is_temp_youtube = False
 
+    # Download or load audio
     if isinstance(song_data, tuple):
         original_url, song_title = song_data
         try:
@@ -303,11 +343,9 @@ async def play_next(ctx):
             await ctx.send(f"⚠️ Could not fetch audio: {e}\nSkipping to next song...")
             return await play_next(ctx)
         ffmpeg_options = FFMPEG_LOCAL_OPTIONS
-        use_rainbow_bar = True
     else:
         song_url = song_data
         song_title = os.path.basename(song_url)
-        use_rainbow_bar = False
         try:
             audio = MP3(song_url) if song_url.endswith(".mp3") else WAVE(song_url)
             duration = int(audio.info.length) if audio and audio.info else 0
@@ -315,6 +353,7 @@ async def play_next(ctx):
             duration = 0
         ffmpeg_options = FFMPEG_LOCAL_OPTIONS
 
+    # Handle cleanup after song finishes
     def after_play(error):
         if error:
             print(f"⚠️ Playback error: {error}")
@@ -325,28 +364,78 @@ async def play_next(ctx):
                 print(f"[Cleanup Error] Could not delete file: {e}")
         asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
+    # Start playing
     vc.play(discord.FFmpegPCMAudio(song_url, **ffmpeg_options), after=after_play)
     vc.source = discord.PCMVolumeTransformer(vc.source, volume_levels_by_guild[guild_id])
 
-    def pulsing_heartbeats_bar(current, total, segments=10, pulse_state=0):
+    # Seasonal system starts here
+    from datetime import datetime
+
+    def get_current_form():
+        now = datetime.utcnow()
+        month = now.month
+        day = now.day
+        if (month == 3 and day >= 21) or (month == 4):
+            return "vernalight"
+        elif (month == 6 and day >= 21) or (month == 7):
+            return "solshine"
+        elif (month == 9 and day >= 21) or (month == 10):
+            return "fallchord"
+        elif (month == 12 and day >= 21) or (month == 1):
+            return "frostveil"
+        else:
+            return "default"
+
+    SEASONAL_FORMS = {
+        "vernalight": {
+            "name": "🌸 Vernalight Blossoms",
+            "color": 0xB3C7F9,
+            "bar_emojis": ['🌧️', '☔', '💧', '💮']
+        },
+        "solshine": {
+            "name": "🌞 Solshine Radiance",
+            "color": 0xFFD966,
+            "bar_emojis": ['☀️', '🌻', '🌼', '✨']
+        },
+        "fallchord": {
+            "name": "🍂 Fallchord Resonance",
+            "color": 0xFF9933,
+            "bar_emojis": ['🍁', '🍂', '🦇', '🎃']
+        },
+        "frostveil": {
+            "name": "❄️ Frostveil Stillness",
+            "color": 0x99CCFF,
+            "bar_emojis": ['❄️', '💙', '🌨️', '🧊']
+        },
+        "default": {
+            "name": "🎵 Echosol Harmonies",
+            "color": 0xFFDB8A,
+            "bar_emojis": [
+                '<:echo2:1383471283076862037>',
+                '<:echo1:1383471280694497391>',
+                '<:echo4:1383471288500097065>',
+                '<:echo3:1383471285123813507>'
+            ]
+        }
+    }
+
+    current_form = get_current_form()
+    form_data = SEASONAL_FORMS.get(current_form, SEASONAL_FORMS["default"])
+
+    # Progress bar generator
+    def seasonal_progress_bar(current, total, segments=10, pulse_state=0):
         filled = int((current / total) * segments)
-        pulse_cycle = ['💖', '💗', '💓', '💞']
-        pulse = pulse_cycle[pulse_state % len(pulse_cycle)]
-        return ''.join("💛" if i < filled else pulse if i == filled else "🤍" for i in range(segments))
+        emojis = form_data["bar_emojis"]
+        pulse = emojis[pulse_state % len(emojis)]
+        return ''.join(emojis[0] if i < filled else pulse if i == filled else "▫️" for i in range(segments))
 
-    def rainbow_pulsing_bar(current, total, segments=10, pulse_state=0):
-        rainbow = ['❤️', '🧡', '💛', '💚', '💙', '💜']
-        filled = int((current / total) * segments)
-        pulse_cycle = ['💖', '💗', '💓', '💞']
-        pulse = pulse_cycle[pulse_state % len(pulse_cycle)]
-        return ''.join(rainbow[i % len(rainbow)] if i < filled else pulse if i == filled else "🤍" for i in range(segments))
+    progress_bar_func = seasonal_progress_bar
 
-    progress_bar_func = rainbow_pulsing_bar if use_rainbow_bar else pulsing_heartbeats_bar
-
+    # Initial embed
     embed = discord.Embed(
-        title="🌞 Echosol Radiance" if not use_rainbow_bar else "🌈 Streaming Light",
-        description=f"✨ **{song_title}** is glowing through your speakers!",
-        color=discord.Color.from_str("#ffc0cb") if not use_rainbow_bar else discord.Color.from_str("#ffd6ff")
+        title=form_data["name"],
+        description=f"🎶 **{song_title}** is playing!",
+        color=form_data["color"]
     )
 
     if duration:
@@ -355,17 +444,22 @@ async def play_next(ctx):
     message = await ctx.send(embed=embed)
     last_now_playing_message_by_guild[guild_id] = message
 
-    if duration:
+    # Update progress loop
+    if duration and not is_high_usage:
         for second in range(1, duration + 1):
             bar = progress_bar_func(second, duration, pulse_state=second)
             timestamp = f"{second // 60}:{second % 60:02d} / {duration // 60}:{duration % 60:02d}"
-            try:
-                embed.set_field_at(0, name="Progress", value=f"{bar} `{timestamp}`", inline=False)
-                await message.edit(embed=embed)
-            except discord.HTTPException:
-                pass
+
+            if second % 5 == 0 or second == duration:
+                try:
+                    embed.set_field_at(0, name="Progress", value=f"{bar} `{timestamp}`", inline=False)
+                    await message.edit(embed=embed)
+                except discord.HTTPException:
+                    pass
+
             await asyncio.sleep(1)
 
+        # Finale phase
         try:
             embed.title = "🌟 Finale Glow"
             embed.description = f"**{song_title}** just wrapped its dance of light!"
@@ -375,6 +469,7 @@ async def play_next(ctx):
             pass
 
         await asyncio.sleep(6)
+
         try:
             embed.set_field_at(0, name="Progress", value="🌙 The glow fades gently... `Complete`", inline=False)
             await message.edit(embed=embed)
@@ -804,6 +899,7 @@ async def tag(ctx, *args):
 
     if tagged:
         await ctx.send(f"🏷️✨ Songs kissed by sunshine: {', '.join(tagged)}\nWith glowing tags: `{', '.join(tags)}`")
+        save_upload_data()  # ✅ Save only if something was tagged
     else:
         await ctx.send("☁️ No songs were tagged this time. Try again with different numbers or tags!")
 
@@ -907,7 +1003,8 @@ async def removetag(ctx, *args):
     loading_message = await ctx.send("✨ Polishing your melodies... One moment, please... 🎵")
     await asyncio.sleep(1)
 
-    # If the first argument is a digit, assume song number mode
+    did_change = False  # 🔄 Track if we made any updates
+
     if args[0].isdigit():
         numbers = []
         invalid = []
@@ -924,6 +1021,7 @@ async def removetag(ctx, *args):
                 if filename in file_tags and file_tags[filename]:
                     file_tags[filename] = []
                     cleared.append(filename)
+                    did_change = True  # ✅ Change detected
 
         if cleared:
             embed = discord.Embed(
@@ -950,7 +1048,6 @@ async def removetag(ctx, *args):
         await loading_message.edit(content=None, embed=embed)
 
     else:
-        # Tag mode
         tag_to_remove = args[0].lower()
         removed_from = []
 
@@ -958,6 +1055,7 @@ async def removetag(ctx, *args):
             if tag_to_remove in tags:
                 tags.remove(tag_to_remove)
                 removed_from.append(filename)
+                did_change = True  # ✅ Change detected
 
         if removed_from:
             embed = discord.Embed(
@@ -976,6 +1074,9 @@ async def removetag(ctx, *args):
 
         await loading_message.edit(content=None, embed=embed)
 
+    if did_change:
+        save_upload_data()  # ✅ Save only if something changed
+
 @bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
     """Stops playback and clears the queue."""
@@ -988,6 +1089,61 @@ async def stop(ctx):
     else:
         await ctx.send("🕊️ The air is quiet already, but your queue has been lovingly cleared. 💫")
 
+@bot.command(aliases=["delete", "removeupload", "du", "byebish"])
+async def deleteupload(ctx, *numbers):
+    """Deletes one or multiple uploaded songs by their numbers (from !listsongs)."""
+    guild_id = ctx.guild.id
+    uploaded_files = uploaded_files_by_guild.get(guild_id, [])
+    file_tags = file_tags_by_guild.get(guild_id, {})
+
+    if not numbers:
+        await ctx.send("🌱 Please share the number(s) of the uploaded song(s) to release. Example: `!du 1 2 3`")
+        return
+
+    deleted = []
+    invalid = []
+
+    for num_str in numbers:
+        try:
+            num = int(num_str.strip(','))
+            if 1 <= num <= len(uploaded_files):
+                filename = uploaded_files[num - 1]
+                file_path = os.path.join(MUSIC_FOLDER, filename)
+
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"[Warning] Could not delete {filename}: {e}")
+
+                deleted.append(filename)
+            else:
+                invalid.append(num_str)
+        except ValueError:
+            invalid.append(num_str)
+
+    # Remove deleted entries from memory and tags
+    for filename in deleted:
+        if filename in uploaded_files:
+            uploaded_files.remove(filename)
+        if filename in file_tags:
+            del file_tags[filename]
+
+    # Update persistent storage
+    uploaded_files_by_guild[guild_id] = uploaded_files
+    file_tags_by_guild[guild_id] = file_tags
+    save_upload_data()
+
+    if deleted:
+        await ctx.send(
+            f"💫 Released **{len(deleted)}** file(s) into the wind:\n"
+            f"✨ `{', '.join(deleted)}`"
+        )
+    if invalid:
+        await ctx.send(
+            f"⚠️ These didn’t shimmer quite right and were skipped: `{', '.join(invalid)}`\n"
+            "Use `!listsongs` to see the right numbers 🌈"
+        )
 
 @bot.command(aliases=["spankies", "cq"])
 async def clearqueue(ctx):
@@ -1009,7 +1165,7 @@ async def clearuploads(ctx):
 
     class ConfirmClearView(discord.ui.View):
         def __init__(self):
-            super().__init__(timeout=15)  # auto-expires after 15 seconds
+            super().__init__(timeout=15)
 
         @discord.ui.button(label="✅ Yes, clear all", style=discord.ButtonStyle.danger)
         async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1029,6 +1185,8 @@ async def clearuploads(ctx):
 
             uploaded_files_by_guild[guild_id] = []
             file_tags_by_guild[guild_id] = {}
+
+            save_upload_data()  # ✅ persist the clear!
 
             await interaction.response.edit_message(content=(
                 f"🌤️ Echosol has gently released **{file_count}** uploaded songs into the wind.\n"
@@ -1050,4 +1208,5 @@ async def clearuploads(ctx):
 
 # Run the bot
 TOKEN = os.getenv("TOKEN")  # Reads token from environment variables
+load_upload_data()
 bot.run(TOKEN)
