@@ -312,11 +312,9 @@ async def play_next(ctx):
         await ctx.send("🌈 The musical journey is paused, but the stage awaits. ✨ Use `!play` when you're ready to glow again!")
         return
 
-    # Mark guild activity
     usage_counters[guild_id] += 1
     is_high_usage = usage_counters[guild_id] >= 30
 
-    # Clean up old embed if any
     if last_now_playing_message_by_guild.get(guild_id):
         try:
             embed = last_now_playing_message_by_guild[guild_id].embeds[0]
@@ -326,11 +324,9 @@ async def play_next(ctx):
             pass
         last_now_playing_message_by_guild[guild_id] = None
 
-    # Get next song
     song_data = song_queue_by_guild[guild_id].pop(0)
     is_temp_youtube = False
 
-    # Download or load audio
     if isinstance(song_data, tuple):
         original_url, song_title = song_data
         try:
@@ -353,7 +349,6 @@ async def play_next(ctx):
             duration = 0
         ffmpeg_options = FFMPEG_LOCAL_OPTIONS
 
-    # Handle cleanup after song finishes
     def after_play(error):
         if error:
             print(f"⚠️ Playback error: {error}")
@@ -364,11 +359,9 @@ async def play_next(ctx):
                 print(f"[Cleanup Error] Could not delete file: {e}")
         asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
 
-    # Start playing
     vc.play(discord.FFmpegPCMAudio(song_url, **ffmpeg_options), after=after_play)
     vc.source = discord.PCMVolumeTransformer(vc.source, volume_levels_by_guild[guild_id])
 
-    # Seasonal system starts here
     from datetime import datetime
 
     def get_current_form():
@@ -390,22 +383,42 @@ async def play_next(ctx):
         "vernalight": {
             "name": "🌸 Vernalight Blossoms",
             "color": 0xB3C7F9,
-            "bar_emojis": ['🌧️', '☔', '💧', '💮']
+            "bar_emojis": ['🌧️', '☔', '💧', '💮'],
+            "unfilled": '🌫️',
+            "start_desc": "The soft rain begins to fall — **{song}** is flowing through the mist.",
+            "finale_title": "🌸 Petals Fade",
+            "finale_desc": "The rain slows, and **{song}** dissolves into morning mist.",
+            "finale_bar": "🌧️"
         },
         "solshine": {
             "name": "🌞 Solshine Radiance",
             "color": 0xFFD966,
-            "bar_emojis": ['☀️', '🌻', '🌼', '✨']
+            "bar_emojis": ['☀️', '🌻', '🌼', '✨'],
+            "unfilled": '🌞',
+            "start_desc": "**{song}** rises bright and warm into your day’s sky.",
+            "finale_title": "🌞 Sunset Glow",
+            "finale_desc": "**{song}** completes its warm embrace beneath golden skies.",
+            "finale_bar": "☀️"
         },
         "fallchord": {
             "name": "🍂 Fallchord Resonance",
             "color": 0xFF9933,
-            "bar_emojis": ['🍁', '🍂', '🦇', '🎃']
+            "bar_emojis": ['🍁', '🍂', '🦇', '🎃'],
+            "unfilled": '🌰',
+            "start_desc": "The autumn breeze carries **{song}** through falling leaves.",
+            "finale_title": "🍂 Autumn Whispers",
+            "finale_desc": "**{song}** drifts softly like falling leaves into stillness.",
+            "finale_bar": "🍁"
         },
         "frostveil": {
             "name": "❄️ Frostveil Stillness",
             "color": 0x99CCFF,
-            "bar_emojis": ['❄️', '💙', '🌨️', '🧊']
+            "bar_emojis": ['❄️', '💙', '🌨️', '🧊'],
+            "unfilled": '🥶',
+            "start_desc": "**{song}** echoes gently through crystal frost and silent snow.",
+            "finale_title": "❄️ Crystal Silence",
+            "finale_desc": "**{song}** fades like snowflakes melting into silence.",
+            "finale_bar": "❄️"
         },
         "default": {
             "name": "🎵 Echosol Harmonies",
@@ -415,26 +428,39 @@ async def play_next(ctx):
                 '<:echo1:1383471280694497391>',
                 '<:echo4:1383471288500097065>',
                 '<:echo3:1383471285123813507>'
-            ]
+            ],
+            "unfilled": '🎶',
+            "start_desc": "🎶 **{song}** is glowing through your speakers!",
+            "finale_title": "🎵 Finale Glow",
+            "finale_desc": "**{song}** concludes its gentle melody of light.",
+            "finale_bar": "✨"
         }
     }
 
     current_form = get_current_form()
     form_data = SEASONAL_FORMS.get(current_form, SEASONAL_FORMS["default"])
 
-    # Progress bar generator
     def seasonal_progress_bar(current, total, segments=10, pulse_state=0):
         filled = int((current / total) * segments)
         emojis = form_data["bar_emojis"]
         pulse = emojis[pulse_state % len(emojis)]
-        return ''.join(emojis[0] if i < filled else pulse if i == filled else "▫️" for i in range(segments))
+        unfilled_icon = form_data.get("unfilled", "▫️")
+
+        bar = ""
+        for i in range(segments):
+            if i < filled:
+                bar += f"{emojis[0]}"
+            elif i == filled:
+                bar += f"{pulse}"
+            else:
+                bar += f"{unfilled_icon}"
+        return bar
 
     progress_bar_func = seasonal_progress_bar
 
-    # Initial embed
     embed = discord.Embed(
         title=form_data["name"],
-        description=f"🎶 **{song_title}** is playing!",
+        description=form_data.get("start_desc", f"🎶 **{song_title}** is playing!").format(song=song_title),
         color=form_data["color"]
     )
 
@@ -444,7 +470,6 @@ async def play_next(ctx):
     message = await ctx.send(embed=embed)
     last_now_playing_message_by_guild[guild_id] = message
 
-    # Update progress loop
     if duration and not is_high_usage:
         for second in range(1, duration + 1):
             bar = progress_bar_func(second, duration, pulse_state=second)
@@ -459,11 +484,11 @@ async def play_next(ctx):
 
             await asyncio.sleep(1)
 
-        # Finale phase
         try:
-            embed.title = "🌟 Finale Glow"
-            embed.description = f"**{song_title}** just wrapped its dance of light!"
-            embed.set_field_at(0, name="Progress", value="✨✨✨✨✨✨✨✨✨✨ `Finished`", inline=False)
+            embed.title = form_data.get("finale_title", "🌟 Finale Glow")
+            embed.description = form_data.get("finale_desc", "**{song}** just finished playing.").format(song=song_title)
+            finale_bar = form_data.get("finale_bar", "✨")
+            embed.set_field_at(0, name="Progress", value=f"{finale_bar * 10} `Finished`", inline=False)
             await message.edit(embed=embed)
         except discord.HTTPException:
             pass
