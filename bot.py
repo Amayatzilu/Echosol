@@ -607,15 +607,11 @@ SEASONAL_FORMS = {
     },
 
     "default": {
+
         "name": "🎵 Echosol Harmonies",
         "color": 0xFFDB8A,
-        "bar_emojis": [
-            '<:echo2:1383471283076862037>',
-            '<:echo1:1383471280694497391>',
-            '<:echo4:1383471288500097065>',
-            '<:echo3:1383471285123813507>'
-        ],
-        "unfilled": '🎼',
+        "bar_emojis": ['🎵', '🎶', '🎼', '🎧'],
+        "unfilled": '🔅',
         "start_desc": "🎶 **{song}** takes the stage — lean back, I've got your vibe covered.",
         "finale_title": "🎵 The Fadeout",
         "finale_desc": "**{song}** drifts off like a satisfied sigh.",
@@ -844,20 +840,16 @@ async def play_next(ctx):
     vc.source = discord.PCMVolumeTransformer(vc.source, volume_levels_by_guild[guild_id])
 
     # Seasonal progress bar (fixed for custom emoji handling)
-    def seasonal_progress_bar(current, total, segments=10, pulse_state=0):
-        try:
-            filled = int((current / total) * segments)
-        except ZeroDivisionError:
-            filled = 0
-
+    def seasonal_progress_bar(current, total, segments=10):
+        filled = int((current / total) * segments) if total > 0 else 0
         emojis = form_data["bar_emojis"]
-        pulse = emojis[pulse_state % len(emojis)]
+        filled_icon = emojis[0]
+        pulse_icon = emojis[1] if len(emojis) > 1 else filled_icon  # fallback if only 1 emoji
         unfilled_icon = form_data.get("unfilled", "▫️")
-
-        return "".join([
-            emojis[0] if i < filled else pulse if i == filled else unfilled_icon
+        return ''.join(
+            f"{filled_icon}" if i < filled else f"{pulse_icon}" if i == filled else f"{unfilled_icon}"
             for i in range(segments)
-        ])
+        )
 
     progress_bar_func = seasonal_progress_bar
 
