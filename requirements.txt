@@ -1,5 +1,5 @@
 discord.py[voice]
-yt-dlp
+yt-dlp>=2025.02.19
 ffmpeg
 python-dotenv
 mutagen

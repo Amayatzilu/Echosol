@@ -23,6 +23,33 @@ intents.members = True  # Allow the bot to track server members (including itsel
 MUSIC_FOLDER = "downloads/"
 os.makedirs(MUSIC_FOLDER, exist_ok=True)
 
+# Main playlist storage
+playlists_by_guild = {}
+PLAYLISTS_FILE = "playlists.json"
+
+# Load existing playlists
+
+def load_playlists():
+    global playlists_by_guild
+    if os.path.exists(PLAYLISTS_FILE):
+        with open(PLAYLISTS_FILE, "r") as f:
+            playlists_by_guild = json.load(f)
+    else:
+        playlists_by_guild = {}
+
+# Save playlists
+
+def save_playlists():
+    with open(PLAYLISTS_FILE, "w") as f:
+        json.dump(playlists_by_guild, f, indent=2)
+
+# Ensure every guild has an initialized dict
+
+def ensure_guild_playlists(guild_id):
+    guild_id = str(guild_id)
+    if guild_id not in playlists_by_guild:
+        playlists_by_guild[guild_id] = {}
+
 # Configure YouTube downloader settings
 cookies_path = "/app/cookies.txt"
 cookie_data = os.getenv("YOUTUBE_COOKIES", "")
@@ -148,7 +175,7 @@ uploaded_files_by_guild = defaultdict(list)
 song_queue_by_guild = defaultdict(list)
 last_now_playing_message_by_guild = defaultdict(lambda: None)
 volume_levels_by_guild = defaultdict(lambda: 1.0)
-
+from playlists import load_playlists, save_playlists, playlists_by_guild
 SAVE_FILE = "uploads_data.json"
 
 def save_upload_data():
@@ -1731,7 +1758,136 @@ async def clearuploads(ctx):
         view=ConfirmClearView()
     )
 
+# ------ Playlist Commands (attach these to your existing bot) ------
+
+@bot.command(aliases=["mkplaylist", "newlist"])
+async def createplaylist(ctx, playlist_name: str):
+    guild_id = str(ctx.guild.id)
+    ensure_guild_playlists(guild_id)
+    
+    if playlist_name in playlists_by_guild[guild_id]:
+        await ctx.send(f"🚫 Playlist `{playlist_name}` already exists!")
+        return
+
+    playlists_by_guild[guild_id][playlist_name] = []
+    save_playlists()
+    await ctx.send(f"🎶 Created new playlist: `{playlist_name}`!")
+
+@bot.command(aliases=["rmlist", "deletepl"])
+async def deleteplaylist(ctx, playlist_name: str):
+    guild_id = str(ctx.guild.id)
+    ensure_guild_playlists(guild_id)
+
+    if playlist_name not in playlists_by_guild[guild_id]:
+        await ctx.send(f"🚫 Playlist `{playlist_name}` doesn’t exist!")
+        return
+
+    del playlists_by_guild[guild_id][playlist_name]
+    save_playlists()
+    await ctx.send(f"🗑️ Deleted playlist `{playlist_name}`.")
+
+@bot.command(aliases=["addsong", "pladd"])
+async def addtoplaylist(ctx, playlist_name: str, *, url: str):
+    guild_id = str(ctx.guild.id)
+    ensure_guild_playlists(guild_id)
+
+    if playlist_name not in playlists_by_guild[guild_id]:
+        await ctx.send(f"🚫 Playlist `{playlist_name}` not found!")
+        return
+
+    playlists_by_guild[guild_id][playlist_name].append(url)
+    save_playlists()
+    await ctx.send(f"✅ Added to `{playlist_name}`!")
+
+@bot.command(aliases=["addq", "pladdqueue"])
+async def addqueue(ctx, playlist_name: str):
+    guild_id = str(ctx.guild.id)
+    ensure_guild_playlists(guild_id)
+
+    if playlist_name not in playlists_by_guild[guild_id]:
+        await ctx.send(f"🚫 Playlist `{playlist_name}` not found!")
+        return
+
+    queue = song_queue_by_guild.get(ctx.guild.id, [])
+    if not queue:
+        await ctx.send("🌥️ Nothing in queue to add!")
+        return
+
+    for song_path in queue:
+        playlists_by_guild[guild_id][playlist_name].append(song_path)
+    save_playlists()
+    await ctx.send(f"✅ Added {len(queue)} songs to `{playlist_name}`!")
+
+@bot.command(aliases=["remsong", "plremove"])
+async def removefromplaylist(ctx, playlist_name: str, index: int):
+    guild_id = str(ctx.guild.id)
+    ensure_guild_playlists(guild_id)
+
+    if playlist_name not in playlists_by_guild[guild_id]:
+        await ctx.send(f"🚫 Playlist `{playlist_name}` not found!")
+        return
+
+    try:
+        removed = playlists_by_guild[guild_id][playlist_name].pop(index - 1)
+        save_playlists()
+        await ctx.send(f"🗑️ Removed: `{removed}` from `{playlist_name}`.")
+    except IndexError:
+        await ctx.send(f"🚫 Invalid index — playlist only has {len(playlists_by_guild[guild_id][playlist_name])} items.")
+
+@bot.command(aliases=["myplaylists", "listsaved"])
+async def listplaylists(ctx):
+    guild_id = str(ctx.guild.id)
+    ensure_guild_playlists(guild_id)
+
+    playlists = playlists_by_guild[guild_id]
+    if not playlists:
+        await ctx.send("📂 No playlists yet!")
+        return
+
+    embed = discord.Embed(title="🎶 Your Playlists:", color=discord.Color.blurple())
+    for name, items in playlists.items():
+        embed.add_field(name=name, value=f"{len(items)} song(s)", inline=False)
+
+    await ctx.send(embed=embed)
+
+@bot.command(aliases=["plplay"])
+async def playplaylist(ctx, playlist_name: str):
+    guild_id = str(ctx.guild.id)
+    ensure_guild_playlists(guild_id)
+
+    if playlist_name not in playlists_by_guild[guild_id]:
+        await ctx.send(f"🚫 Playlist `{playlist_name}` not found!")
+        return
+
+    playlist = playlists_by_guild[guild_id][playlist_name]
+    if not playlist:
+        await ctx.send("🌥️ Playlist is empty!")
+        return
+
+    for item in playlist:
+        song_queue_by_guild[guild_id].append(item)
+    await ctx.send(f"🎧 Queued `{len(playlist)}` songs from `{playlist_name}`!")
+
+    if not ctx.voice_client:
+        if ctx.author.voice:
+            await ctx.author.voice.channel.connect()
+        else:
+            await ctx.send("❌ Join a voice channel first!")
+            return
+
+    if not ctx.voice_client.is_playing():
+        await play_next(ctx)
+
+@bot.command()
+async def backupplaylists(ctx):
+    try:
+        with open(PLAYLISTS_FILE, "rb") as f:
+            await ctx.send("📂 Playlist backup:", file=discord.File(f, PLAYLISTS_FILE))
+    except Exception as e:
+        await ctx.send(f"🚫 Backup failed: {e}")
+
 # Run the bot
 TOKEN = os.getenv("TOKEN")  # Reads token from environment variables
 load_upload_data()
+load_playlists()
 bot.run(TOKEN)
