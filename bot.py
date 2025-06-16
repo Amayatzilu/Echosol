@@ -175,7 +175,7 @@ uploaded_files_by_guild = defaultdict(list)
 song_queue_by_guild = defaultdict(list)
 last_now_playing_message_by_guild = defaultdict(lambda: None)
 volume_levels_by_guild = defaultdict(lambda: 1.0)
-from playlists import load_playlists, save_playlists, playlists_by_guild
+
 SAVE_FILE = "uploads_data.json"
 
 def save_upload_data():
@@ -354,6 +354,7 @@ SEASONAL_FORMS = {
         "clearuploads_cancel_message": "🌱 The spring garden remains undisturbed.",
         "clearuploads_unauthorized_cancel_message": "❌ Only the gardener who summoned this may cancel.",
         "clearuploads_unauthorized_confirm_message": "❌ Only the original gardener may clear the blossoms.",
+
         "upload_message": "🌧️ Thank you for planting new melodies into the spring garden! 🌼",
         "tag_prompt": "🌱 Reply with tags to help these blossoms bloom. (e.g. `chill`, `rainy morning`, `soft`)",
         "tag_success_reply": "🏷️ Your blossoms have been tagged and are growing beautifully! 🌿",
