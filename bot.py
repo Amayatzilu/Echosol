@@ -33,12 +33,12 @@ if cookie_data:
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
 
-def get_current_form():
-    now = datetime.utcnow()
-
 @bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
-    """Displays all main commands with dropdown selection."""
+    """Displays all main commands with dropdown selection, now seasonally flavored."""
+    
+    form_data = get_seasonal_form_data()
+
     class HelpDropdown(Select):
         def __init__(self):
             options = [
@@ -53,10 +53,10 @@ async def help(ctx):
             choice = self.values[0]
 
             embed = discord.Embed(
-                color=discord.Color.from_str("#ffe680"),
-                title="✨ Echosol Help – Glowing Commands Guide"
+                color=form_data["color"],
+                title=form_data.get("help_intro", "✨ Echosol Help – Glowing Commands Guide")
             )
-            embed.set_footer(text="🌻 Let the sunshine guide your musical path.")
+            embed.set_footer(text=form_data.get("help_footer", "🌻 Echosol Guide"))
 
             if "Playback" in choice:
                 embed.title = "🌞 Playback – Light up the room!"
@@ -85,7 +85,7 @@ async def help(ctx):
                 embed.description = (
                     "🔖 **!tag** – Let your songs blossom with custom tags like 'sunrise', 'cozy', or 'adventure'.\n"
                     "💚 **!playbytag** – Play all songs sharing the same spark of light.\n"
-                    "📑 **!listtags** – See the beautiful constellation of tags you've created."
+                    "📑 **!listtags** – See the beautiful constellation of tags you've created.\n"
                     "🌿 **!removetag** – Breeze away a tag or free songs from all their labels. Alias: untag."
                 )
             elif "Utility" in choice:
@@ -105,11 +105,11 @@ async def help(ctx):
             self.add_item(HelpDropdown())
 
     intro_embed = discord.Embed(
-        title="✨ Welcome to Echosol, your heart's musical companion 💖",
+        title=form_data.get("help_intro", "✨ Welcome to Echosol, your heart's musical companion 💖"),
         description="Let the rhythm guide your soul and the light lead your playlist 🌈🎵",
-        color=discord.Color.from_str("#ffe680")
+        color=form_data["color"]
     )
-    intro_embed.set_footer(text="🌻 Echosol is powered by light, rhythm, and you – your musical journey starts here.")
+    intro_embed.set_footer(text=form_data.get("help_footer", "🌻 Echosol Guide"))
 
     view = HelpView()
     await ctx.send(embed=intro_embed, view=view)
@@ -190,6 +190,9 @@ async def on_message(message):
     guild_id = message.guild.id
     user_id = message.author.id
 
+    # Pull seasonal flavor 🍃
+    form_data = get_seasonal_form_data()
+
     # Handle song uploads with warmth 🎶
     if message.attachments:
         new_files = []
@@ -203,11 +206,11 @@ async def on_message(message):
         if new_files:
             pending_tag_uploads[guild_id][user_id] = new_files
             await message.channel.send(
-                f"🌟 Thank you for sharing your musical light! 🌈\n"
+                f"{form_data.get('upload_message', '🌟 Thanks for sharing your musical light! 🌈')}\n"
                 f"🎵 Uploaded: **{', '.join(new_files)}**\n"
-                f"💫 Please reply to this message with tags (like `chill`, `sunset`, `epic`). Separate with spaces or commas!"
+                f"💫 {form_data.get('tag_prompt', 'Please reply with tags (e.g. `chill`, `sunset`, `epic`) — spaces or commas are fine!')}"
             )
-            save_upload_data()  # ✅ Save after uploading
+            save_upload_data()
         return
 
     # Handle tag replies with gentle guidance 💖
@@ -215,15 +218,14 @@ async def on_message(message):
         try:
             replied_message = await message.channel.fetch_message(message.reference.message_id)
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-            return  # Ignore if the message can't be fetched
+            return
 
-        # Only accept replies to bot's upload message
-        if replied_message.author.id != bot.user.id or not replied_message.content.startswith("🌟 Thank you for sharing your musical light!"):
+        if replied_message.author.id != bot.user.id or not replied_message.content.startswith(form_data.get('upload_message', "🌟 Thank you for sharing your musical light!")):
             return
 
         tags = [t.strip().lower() for t in message.content.replace(",", " ").split()]
         if not tags:
-            await message.channel.send("⚠️ Oops! No tags found. Try again with some beautiful labels 🌻")
+            await message.channel.send(form_data.get('tag_none_found', "⚠️ Oops! No tags found. Try again with some beautiful labels 🌻"))
             return
 
         for filename in pending_tag_uploads[guild_id][user_id]:
@@ -232,47 +234,525 @@ async def on_message(message):
             file_tags_by_guild[guild_id][filename].extend(tags)
 
         await message.channel.send(
-            f"🏷️ Your sound sparkles have been tagged! ✨\n"
+            f"{form_data.get('tag_success_reply', '🏷️ Your sound sparkles have been tagged! ✨')}\n"
             f"💖 Tagged **{len(pending_tag_uploads[guild_id][user_id])}** file(s) with: `{', '.join(tags)}`"
         )
 
         del pending_tag_uploads[guild_id][user_id]
-        save_upload_data()  # ✅ Save after tagging
+        save_upload_data()
+
+
+# 🌸 Seasonal Flavor Helper 🌞🍂❄️
+from datetime import datetime
+
+SEASONAL_FORMS = {
+    "vernalight": {
+        "name": "🌸 Vernalight Blossoms",
+        "color": 0xB3C7F9,
+        "bar_emojis": ['🌧️', '☔', '💧', '💮'],
+        "unfilled": '🌫️',
+        "start_desc": "The soft rain begins to fall — **{song}** flows gently through the mist.",
+        "finale_title": "🌸 Petals Fade",
+        "finale_desc": "**{song}** dissolves into the morning fog as spring hushes once more.",
+        "finale_bar": "🌧️",
+
+        # Play related
+        "join_message": "🌧️ The spring rain gently carries Echosol into the voice channel.",
+        "leave_message": "🌦️ Echosol drifts quietly from the channel as the petals settle.",
+        "no_url_message": "🌱 A song link is needed to plant the next bloom.",
+        "connected_message": "🌸 Echosol is now present beneath the spring rain.",
+        "playlist_add_message": "🌼 {count} blossoms from the playlist have joined the garden.",
+        "single_add_message": "🌷 **{title}** has been planted into the springtime soundscape.",
+
+        # Playback controls
+        "pause_message": "🌿 The rain slows as the music pauses for a breath.",
+        "resume_message": "🌦️ The rainfall resumes and the melody flows once more.",
+        "skip_message": "⏭️ A breeze lifts the melody to its next bloom.",
+        "shuffle_message": "🌻 The spring winds have stirred the blossoms into new patterns.",
+        "shuffle_too_short_message": "🌱 Not enough blossoms to shuffle — plant more to begin.",
+
+        # Queue displays
+        "queue_empty_message": "🌫️ The garden lies quiet... plant new melodies with `!play` or `!listsongs`.",
+        "queue_embed_title": "🌸 Vernalight — Blooming Queue",
+        "queue_page_empty_message": "🌧️ This page waits quietly for new blooms.",
+        "queue_shuffle_success_message": "🌷 The garden has been gently reshuffled by the breeze.",
+
+        # Volume
+        "volume_message": "🔊 Volume set to **{volume}%** — soft as rain upon petals.",
+        "volume_invalid_message": "🚫 Volume must be between **1 and 100** — even spring has its limits.",
+
+        # Upload system
+        "uploads_empty_message": "🌱 No blossoms have been planted yet. Upload a song to begin.",
+        "uploads_embed_title": "🌼 Blooming Uploads",
+        "uploads_page_empty_message": "🌫️ This page awaits its first spring bloom.",
+        "uploads_page_play_message": "🌷 {count} blooms have joined the queue from this page.",
+        "uploads_page_shuffle_message": "🌻 The blossoms have been reshuffled into fresh patterns.",
+        "uploads_full_shuffle_message": "🌈 All {count} uploaded blossoms are now queued for spring’s concert.",
+        "uploads_connect_message": "🌸 Echosol has arrived to tend the spring garden.",
+        "uploads_connect_error_message": "❌ A voice channel is needed for the spring melody to begin.",
+
+        # Tag system
+        "tag_usage_message": "🌸 Use `!tag <numbers> <tags>` to label blossoms. Example: `!tag 1 2 cozy rain`",
+        "tag_valueerror_message": "⚠️ Some song numbers could not be read — check your blossoms again.",
+        "tag_missing_args_message": "🌱 Provide both song numbers and tags to nurture your garden.",
+        "tag_invalid_number_message": "🌾 Skipped song number {num} — not found in the garden.",
+        "tag_success_message": "🏷️ Blossoms tagged: {files} with `{tags}`.",
+        "tag_no_tagged_message": "☁️ No blossoms were tagged this time — try again with valid choices.",
+
+        "playbytag_no_args_message": "🌿 Provide at least one tag to gather your blossoms. Example: `!playbytag cozy`",
+        "playbytag_no_matches_message": "🌫️ No blossoms found matching tags: `{tags}`.",
+        "playbytag_success_message": "🌷 Added {count} blooming tracks tagged `{tags}`.",
+
+        "listtags_empty_message": "🌫️ No tags have been planted yet in this garden.",
+        "listtags_title": "🌼 Tags Blooming in the Spring Garden",
+
+        "removetag_missing_args_message": "🌱 Provide song numbers or tags to remove blossoms.",
+        "removetag_loading_message": "✨ Pruning the garden... please wait...",
+        "removetag_success_message": "🌷 Tags removed from: {files}.",
+        "removetag_none_found_message": "🌫️ No tags found to remove from these blossoms.",
+        "removetag_invalid_input_message": "⚠️ Some inputs could not be processed: {invalid}",
+        "removetag_tag_removed_message": "🏷️ Removed `{tag}` from: {files}.",
+        "removetag_tag_not_found_message": "🌫️ No songs carried the tag `{tag}`.",
+
+        # Stop/Clear system
+        "stop_active_message": "🌸 Playback has stopped — the rain grows still.",
+        "stop_idle_message": "🌷 The spring air is already calm — the queue was clear.",
+        "deleteupload_no_args_message": "🌱 Provide upload numbers to remove. Ex: `!du 1 2 3`",
+        "deleteupload_success_message": "💫 Released {count} blossoms into the breeze: `{files}`",
+        "deleteupload_invalid_numbers_message": "⚠️ Invalid blossoms skipped: `{invalid}`",
+        "clearqueue_message": "🌸 The queue has been cleared — fresh blossoms may now grow.",
+        "clearuploads_nothing_message": "🌫️ No uploads present — the garden is already empty.",
+        "clearuploads_confirm_message": "⚠️ Do you wish to clear **all uploaded blossoms**? This cannot be undone.",
+        "clearuploads_success_message": "🌷 {count} blossoms have been cleared from the garden.",
+        "clearuploads_cancel_message": "🌱 The spring garden remains undisturbed.",
+        "clearuploads_unauthorized_cancel_message": "❌ Only the gardener who summoned this may cancel.",
+        "clearuploads_unauthorized_confirm_message": "❌ Only the original gardener may clear the blossoms.",
+        "upload_message": "🌧️ Thank you for planting new melodies into the spring garden! 🌼",
+        "tag_prompt": "🌱 Reply with tags to help these blossoms bloom. (e.g. `chill`, `rainy morning`, `soft`)",
+        "tag_success_reply": "🏷️ Your blossoms have been tagged and are growing beautifully! 🌿",
+        "tag_none_found": "☁️ No tags were detected — let’s try planting again!",
+        "help_intro": "🌸 Vernalight — Spring whispers, blooming melodies, and soft rain to carry your playlist.",
+        "help_footer": "🌿 The garden of songs awaits your touch."
+    },
+
+    "solshine": {
+        "name": "🌞 Solshine Radiance",
+        "color": 0xFFD966,
+        "bar_emojis": ['☀️', '🌻', '🌼', '✨'],
+        "unfilled": '🌞',
+        "start_desc": "**{song}** rises, glowing warm — and a little irresistible — beneath wide open skies.",
+        "finale_title": "🌞 Sunset Glow",
+        "finale_desc": "**{song}** finishes with a wink as golden light melts into the horizon.",
+        "finale_bar": "☀️",
+
+        # Play related
+        "join_message": "☀️ Echosol steps into the sunshine — looking good, feeling better.",
+        "leave_message": "🌇 The sun dips low, and Echosol takes his leave... but not for long.",
+        "no_url_message": "🌞 You bring the song, I bring the glow. Drop that link, gorgeous.",
+        "connected_message": "🌻 Echosol settles in — shirtless, obviously — ready to light up your playlist.",
+        "playlist_add_message": "🌼 {count} spicy new tracks are now basking in the queue.",
+        "single_add_message": "🌷 **{title}** just turned up the summer heat.",
+
+        # Playback controls
+        "pause_message": "🌅 The sun lounges for a moment — a little break never hurt anybody.",
+        "resume_message": "☀️ Back in the groove — didn’t keep you waiting too long, did I? 😉",
+        "skip_message": "⏭️ Next up — I hope you're ready for more heat.",
+        "shuffle_message": "🌻 The playlist flirts with a breeze — variety is the spice of summer.",
+        "shuffle_too_short_message": "🌱 Not enough songs to stir up — let’s plant a few more, sweetheart.",
+
+        # Queue displays
+        "queue_empty_message": "🌞 The stage is empty — time to throw in something worth dancing to.",
+        "queue_embed_title": "🌞 Solshine — Heatwave Queue",
+        "queue_page_empty_message": "🌻 This part of the playlist could use a little more sunshine.",
+        "queue_shuffle_success_message": "🌷 The summer breeze spun the playlist — let’s see where it takes us.",
+
+        # Volume
+        "volume_message": "🔊 Volume set to **{volume}%** — hot enough to make hearts race.",
+        "volume_invalid_message": "🚫 Let’s not burn up — keep it between 1 and 100, darling.",
+
+        # Upload system
+        "uploads_empty_message": "🌞 The sky’s empty — upload a song to start heating things up.",
+        "uploads_embed_title": "🌼 Summer Uploads",
+        "uploads_page_empty_message": "🌻 This page needs a few more rays of sunshine.",
+        "uploads_page_play_message": "🌷 {count} glowing tracks have joined your summer mix.",
+        "uploads_page_shuffle_message": "🌻 The uploads just got a playful reshuffle.",
+        "uploads_full_shuffle_message": "🌞 All {count} uploaded tracks are ready to sizzle in your queue.",
+        "uploads_connect_message": "🌞 Echosol arrives with just the right amount of glow.",
+        "uploads_connect_error_message": "❌ You’ve gotta invite me to a voice channel first, sweetheart.",
+
+        # Tag system
+        "tag_usage_message": "🌼 Tag those tracks, babe — use `!tag <numbers> <tags>`. Example: `!tag 1 2 summer chill`",
+        "tag_valueerror_message": "⚠️ A few of those numbers didn’t land — take another peek.",
+        "tag_missing_args_message": "🌱 Gotta give me both the songs and the tags if we're gonna make magic.",
+        "tag_invalid_number_message": "🌻 Skipped song number {num} — couldn’t find that one, sunshine.",
+        "tag_success_message": "🏷️ Tagged: {files} with `{tags}` — looking good!",
+        "tag_no_tagged_message": "☀️ Nothing got tagged this round — wanna try again, cutie?",
+
+        "playbytag_no_args_message": "🌿 Drop a tag to fetch your summer vibes. Example: `!playbytag beach`",
+        "playbytag_no_matches_message": "🌞 No songs matched `{tags}` — but we can fix that together.",
+        "playbytag_success_message": "🌻 Added {count} hot tracks matching `{tags}`.",
+
+        "listtags_empty_message": "🌞 No tags in bloom yet — let's get you started.",
+        "listtags_title": "🌻 Solshine Tags — Sun-Kissed & Sorted",
+
+        "removetag_missing_args_message": "🌱 You gotta tell me what we’re clearing, love.",
+        "removetag_loading_message": "✨ Pruning the list... give me just a sec.",
+        "removetag_success_message": "🌻 Tags cleared from: {files}.",
+        "removetag_none_found_message": "🌞 No tags here to clear — clean as summer skies.",
+        "removetag_invalid_input_message": "⚠️ A few inputs tripped me up: {invalid}",
+        "removetag_tag_removed_message": "🏷️ Removed `{tag}` from: {files}.",
+        "removetag_tag_not_found_message": "🌞 No songs had the tag `{tag}` — easy fix though!",
+
+        # Stop/Clear system
+        "stop_active_message": "☀️ The playlist's taking a break — but don’t keep me waiting too long.",
+        "stop_idle_message": "🌻 Already quiet here — I was just admiring the view.",
+        "deleteupload_no_args_message": "🌱 Drop some file numbers, sugar. Example: `!du 1 2 3`",
+        "deleteupload_success_message": "💫 Released {count} tracks into the breeze: `{files}`",
+        "deleteupload_invalid_numbers_message": "⚠️ Couldn’t recognize these: `{invalid}`",
+        "clearqueue_message": "☀️ Queue cleared — wide open for new heat.",
+        "clearuploads_nothing_message": "🌞 Nothing here to clear — just pure sunshine.",
+        "clearuploads_confirm_message": "⚠️ You sure you wanna clear **all uploaded songs**? This is permanent, gorgeous.",
+        "clearuploads_success_message": "🌻 Cleared {count} uploads — skies wide open now.",
+        "clearuploads_cancel_message": "🌞 Left everything untouched — couldn’t say no to you.",
+        "clearuploads_unauthorized_cancel_message": "❌ Only the original charmer can cancel this.",
+        "clearuploads_unauthorized_confirm_message": "❌ Only the one who started this can clear it out.",
+
+        "upload_message": "☀️ Thanks for dropping some sunshine into the playlist, gorgeous. 🌻",
+        "tag_prompt": "🌞 Drop some tags to spice things up. (e.g. `summer vibes`, `heatwave`, `poolside`)",
+        "tag_success_reply": "🏷️ Tagged and glowing, babe — looking fine. 🌞",
+        "tag_none_found": "🌻 No tags caught the heat. Wanna give it another go?",
+        "help_intro": "🌞 Solshine — Turn up the heat, turn up the flirt, and let summer blast through your speakers.",
+        "help_footer": "🌻 Summer never ends when you control the playlist."
+    },
+
+    "fallchord": {
+        "name": "🍂 Fallchord Resonance",
+        "color": 0xFF9933,
+        "bar_emojis": ['🍁', '🍂', '🦇', '🎃'],
+        "unfilled": '🌰',
+        "start_desc": "**{song}** drifts in like falling leaves on an autumn breeze.",
+        "finale_title": "🍂 Autumn Fade",
+        "finale_desc": "**{song}** slips quietly into the dusk, leaving only swirling leaves behind.",
+        "finale_bar": "🍁",
+
+        # Play related
+        "join_message": "🍂 Echosol drifts in on the breeze — cozy, but watch for shadows.",
+        "leave_message": "🌙 The winds shift, and Echosol vanishes like a whispered ghost story.",
+        "no_url_message": "🍁 Whisper me your song — let's fill the clearing with sound.",
+        "connected_message": "🦇 Echosol perches beneath the trees, ready to spin your autumn melody.",
+        "playlist_add_message": "🎃 {count} tunes flutter into the harvest playlist.",
+        "single_add_message": "🍎 **{title}** joins the dance beneath the amber moon.",
+
+        # Playback controls
+        "pause_message": "🍷 The candles flicker — the melody pauses to sip the evening air.",
+        "resume_message": "🍁 The wind stirs again — time to keep dancing through the leaves.",
+        "skip_message": "⏭️ A new song rises like mist — onward through the woods.",
+        "shuffle_message": "🍂 The forest stirs — your playlist just got shuffled by a playful gust.",
+        "shuffle_too_short_message": "🌰 Not quite enough leaves to swirl — add more to the pile.",
+
+        # Queue displays
+        "queue_empty_message": "🍂 The clearing is quiet — toss in some tunes and let them fall.",
+        "queue_embed_title": "🍁 Fallchord Queue — Dusklit Melodies",
+        "queue_page_empty_message": "🎃 This patch waits for melodies to tumble in.",
+        "queue_shuffle_success_message": "🍂 The leaves swirl — your queue has been mixed anew.",
+
+        # Volume
+        "volume_message": "🔊 Volume set to **{volume}%** — loud enough to echo through the trees.",
+        "volume_invalid_message": "🚫 Easy now — don’t wake the spirits. Keep it between 1 and 100.",
+
+        # Upload system
+        "uploads_empty_message": "🍂 The woods are still — upload something to break the hush.",
+        "uploads_embed_title": "🦇 Autumn Uploads",
+        "uploads_page_empty_message": "🍎 This patch of forest is waiting for new songs.",
+        "uploads_page_play_message": "🎃 {count} autumn tunes rise like fog into the queue.",
+        "uploads_page_shuffle_message": "🍂 The wind plays with your uploads — reshuffled.",
+        "uploads_full_shuffle_message": "🍁 All {count} songs swirl together beneath falling leaves.",
+        "uploads_connect_message": "🌕 Echosol appears beneath lantern light, ready to begin.",
+        "uploads_connect_error_message": "❌ The ritual isn’t complete — hop in a voice channel first.",
+
+        # Tag system
+        "tag_usage_message": "🍁 Tag your tunes like fallen leaves: `!tag <numbers> <tags>`. Ex: `!tag 1 2 cozy dusk`",
+        "tag_valueerror_message": "⚠️ Some of those song numbers got lost in the fog.",
+        "tag_missing_args_message": "🍂 You'll need both numbers and tags for this spell to work.",
+        "tag_invalid_number_message": "🌰 Skipped song {num} — couldn't find that leaf.",
+        "tag_success_message": "🏷️ The leaves carry your tags: {files} now sparkle with `{tags}`.",
+        "tag_no_tagged_message": "🍁 No tags stuck this time — try again beneath the moon.",
+
+        "playbytag_no_args_message": "🌙 Call out a tag to summon the matching tunes. Ex: `!playbytag spooky`",
+        "playbytag_no_matches_message": "🍂 No songs matched `{tags}` — perhaps hidden by mist.",
+        "playbytag_success_message": "🦇 Summoned {count} tracks under `{tags}`.",
+
+        "listtags_empty_message": "🍁 No tags gathered yet — the forest is quiet.",
+        "listtags_title": "🍂 Fallchord Tags — Whispered Among The Trees",
+
+        "removetag_missing_args_message": "🌰 You’ll need to tell me which tags or songs to release.",
+        "removetag_loading_message": "✨ Shaking loose the branches... almost there...",
+        "removetag_success_message": "🍂 Cleared tags from: {files}.",
+        "removetag_none_found_message": "🍎 No tags here to clear — tidy as the autumn sky.",
+        "removetag_invalid_input_message": "⚠️ Some slipped between branches: {invalid}",
+        "removetag_tag_removed_message": "🏷️ Removed `{tag}` from: {files}.",
+        "removetag_tag_not_found_message": "🍂 No songs held the tag `{tag}`.",
+
+        # Stop/Clear system
+        "stop_active_message": "🌙 The grove falls still — the melody rests.",
+        "stop_idle_message": "🍁 Already silent under moonlit trees.",
+        "deleteupload_no_args_message": "🍂 Share some numbers, friend. Ex: `!du 1 2 3`",
+        "deleteupload_success_message": "💫 Released {count} songs into the wind: `{files}`",
+        "deleteupload_invalid_numbers_message": "⚠️ These slipped through the cracks: `{invalid}`",
+        "clearqueue_message": "🍂 Queue cleared — fresh winds await.",
+        "clearuploads_nothing_message": "🍁 The forest floor is already clear.",
+        "clearuploads_confirm_message": "⚠️ Clear **all uploaded songs**? The woods will stand empty.",
+        "clearuploads_success_message": "🍎 Cleared {count} uploads — scattered to the breeze.",
+        "clearuploads_cancel_message": "🍂 The songs remain, tucked beneath autumn’s watch.",
+        "clearuploads_unauthorized_cancel_message": "❌ Only the one who called may change the winds.",
+        "clearuploads_unauthorized_confirm_message": "❌ Only the summoner may clear the grove.",
+
+        "upload_message": "🍁 Your song drifts in like falling leaves — welcome to autumn’s cozy tunes. 🍂",
+        "tag_prompt": "🍎 Whisper your tags into the wind. (e.g. `spooky`, `cozy`, `fireside`)",
+        "tag_success_reply": "🏷️ Your leaves have been tagged and scattered beneath the trees. 🍃",
+        "tag_none_found": "🌫️ No tags rustled — the wind carried them away. Try again?",
+        "help_intro": "🍂 Fallchord — Dusky nights, cozy fires, and just a hint of autumn magic in every beat.",
+        "help_footer": "🍁 The forest waits, quiet and colorful."
+    },
+
+    "frostveil": {
+        "name": "❄️ Frostveil Stillness",
+        "color": 0x99CCFF,
+        "bar_emojis": ['❄️', '💙', '🌨️', '🧊'],
+        "unfilled": '🥶',
+        "start_desc": "**{song}** begins to swirl softly, like snow through winter air.",
+        "finale_title": "❄️ Whispered Silence",
+        "finale_desc": "**{song}** drifts into stillness, blanketed beneath crystal frost.",
+        "finale_bar": "❄️",
+
+        # Play related
+        "join_message": "❄️ Echosol steps in from the snow — safe, warm, and ready to play your tunes.",
+        "leave_message": "🌨️ The blizzard carries Echosol softly back into the swirling night.",
+        "no_url_message": "☕ Hand me your song — we’ll let it dance like snowflakes.",
+        "connected_message": "🧣 Echosol settles in by the hearth, melodies at the ready.",
+        "playlist_add_message": "🧤 {count} songs tucked warmly into the queue.",
+        "single_add_message": "❄️ **{title}** joins the cozy gathering inside.",
+
+        # Playback controls
+        "pause_message": "🥶 The music takes a breath, snowflakes frozen mid-air.",
+        "resume_message": "☕ The melody stirs again, warm as cocoa in cold hands.",
+        "skip_message": "⏭️ The storm shifts — a new song floats in on the breeze.",
+        "shuffle_message": "🌬️ The winds playfully reshuffle your cozy playlist.",
+        "shuffle_too_short_message": "🧊 There’s barely enough snow to swirl — add more songs!",
+
+        # Queue displays
+        "queue_empty_message": "🌨️ The fireplace crackles — but the song list is empty.",
+        "queue_embed_title": "❄️ Frostveil Queue — Hearthside Melodies",
+        "queue_page_empty_message": "🥶 This spot is chilly — bring more songs inside.",
+        "queue_shuffle_success_message": "🌬️ The storm mixed your queue with a playful gust.",
+
+        # Volume
+        "volume_message": "🔊 Volume set to **{volume}%** — enough to echo through frosted windows.",
+        "volume_invalid_message": "🚫 Easy — too loud might wake the wind spirits. (1-100)",
+
+        # Upload system
+        "uploads_empty_message": "🌨️ The shelves are empty — upload songs to fill the cabin.",
+        "uploads_embed_title": "🧊 Frostveil Uploads",
+        "uploads_page_empty_message": "❄️ This part of the shelf waits for new songs.",
+        "uploads_page_play_message": "☕ {count} cozy tunes now warming the queue.",
+        "uploads_page_shuffle_message": "🌬️ The snow stirs — your uploads have been shuffled.",
+        "uploads_full_shuffle_message": "🧤 All {count} songs are swirling through the winter wind.",
+        "uploads_connect_message": "🕯️ Echosol curls up beside the lights — ready to play.",
+        "uploads_connect_error_message": "❌ The fire’s not lit — join a voice channel first.",
+
+        # Tag system
+        "tag_usage_message": "❄️ Label your songs like ornaments: `!tag <numbers> <tags>`",
+        "tag_valueerror_message": "⚠️ Some of those numbers slipped under the snow.",
+        "tag_missing_args_message": "🌬️ Both numbers and tags, please — let's decorate the list.",
+        "tag_invalid_number_message": "🧊 Skipped song {num} — couldn’t find it under the snowdrift.",
+        "tag_success_message": "🏷️ Songs tagged: {files} with `{tags}` — sparkling like ice crystals.",
+        "tag_no_tagged_message": "❄️ No tags stuck this time — let’s try again by the fire.",
+
+        "playbytag_no_args_message": "🧣 Share a tag and we’ll find matching winter tunes.",
+        "playbytag_no_matches_message": "🌬️ No songs matched `{tags}` — lost somewhere in the snow.",
+        "playbytag_success_message": "🌨️ Brought {count} songs into the warm under `{tags}`.",
+
+        "listtags_empty_message": "❄️ No tags yet — the shelves are bare.",
+        "listtags_title": "🌨️ Frostveil Tags — Tucked Beneath The Snow",
+
+        "removetag_missing_args_message": "🧊 Tell me which tags or songs to gently unhook.",
+        "removetag_loading_message": "✨ Sweeping snow off the shelves... hold tight...",
+        "removetag_success_message": "❄️ Tags cleared from: {files}.",
+        "removetag_none_found_message": "🥶 No tags found to clear — all tidy and still.",
+        "removetag_invalid_input_message": "⚠️ A few slipped through the cracks: {invalid}",
+        "removetag_tag_removed_message": "🏷️ Removed `{tag}` from: {files}.",
+        "removetag_tag_not_found_message": "🌨️ No songs carried the tag `{tag}`.",
+
+        # Stop/Clear system
+        "stop_active_message": "🌬️ The cabin grows quiet — the storm whispers outside.",
+        "stop_idle_message": "❄️ Already silent, with snow softly falling.",
+        "deleteupload_no_args_message": "☕ Share some song numbers to clear. Ex: `!du 1 2 3`",
+        "deleteupload_success_message": "💫 Released {count} songs back into the snowy night: `{files}`",
+        "deleteupload_invalid_numbers_message": "⚠️ Couldn’t find these under the snow: `{invalid}`",
+        "clearqueue_message": "🌨️ The queue is cleared — time for fresh snow to fall.",
+        "clearuploads_nothing_message": "🧤 Nothing here — the shelves are already empty.",
+        "clearuploads_confirm_message": "⚠️ Clear **all uploaded songs**? The cabin shelves will be empty.",
+        "clearuploads_success_message": "☕ Cleared {count} uploads — ready for new cozy songs.",
+        "clearuploads_cancel_message": "❄️ The songs remain safe inside for another night.",
+        "clearuploads_unauthorized_cancel_message": "❌ Only the one who lit the fire may change this.",
+        "clearuploads_unauthorized_confirm_message": "❌ Only the summoner may clear the shelves.",
+
+        "upload_message": "❄️ Your song drifts softly inside, away from the swirling snow. 🧤",
+        "tag_prompt": "☕ Wrap your tags up nice and warm. (e.g. `snowfall`, `fireplace`, `holiday`)",
+        "tag_success_reply": "🏷️ Tagged and tucked in safe like snowflakes under a blanket. 🧣",
+        "tag_none_found": "🌨️ No tags caught in the snow. Let’s try again with gloves this time!",
+        "help_intro": "❄️ Frostveil — Warm cocoa, soft lights, and melodies swirling like snow outside the window.",
+        "help_footer": "🧣 Stay warm, stay cozy — and let the music glow."
+
+    },
+
+    "default": {
+        "name": "🎵 Echosol Harmonies",
+        "color": 0xFFDB8A,
+        "bar_emojis": [
+            '<:echo2:1383471283076862037>',
+            '<:echo1:1383471280694497391>',
+            '<:echo4:1383471288500097065>',
+            '<:echo3:1383471285123813507>'
+        ],
+        "unfilled": '🎼',
+        "start_desc": "🎶 **{song}** takes the stage — lean back, I've got your vibe covered.",
+        "finale_title": "🎵 The Fadeout",
+        "finale_desc": "**{song}** drifts off like a satisfied sigh.",
+        "finale_bar": "✨",
+
+        "join_message": "🎧 Sliding in — lights warm, sound smooth, vibe ready.",
+        "leave_message": "🌙 Fading out — but you know where to find me when you need the music.",
+        "no_url_message": "🎶 Don't be shy — drop me a track, let's make magic.",
+        "connected_message": "🎛️ All set — let’s turn this quiet room into a concert.",
+        "playlist_add_message": "🎼 {count} new tracks locked in. The night’s looking good.",
+        "single_add_message": "🎵 **{title}** queued — can't wait to hear how it shines.",
+
+        "pause_message": "⏸️ Holding the beat — anticipation can be sweet.",
+        "resume_message": "▶️ Right where we left off — let it flow.",
+        "skip_message": "⏭️ Skipping ahead — next song, show us what you’ve got.",
+        "shuffle_message": "🔀 Stirring the pot — let’s see what magic comes up.",
+        "shuffle_too_short_message": "🎧 A little thin for shuffling — add a few more gems first.",
+
+        "queue_empty_message": "🎵 The stage is clear. Your move, maestro.",
+        "queue_embed_title": "🎶 Echosol Queue — The Setlist",
+        "queue_page_empty_message": "🎧 No songs here... let’s fix that, yeah?",
+        "queue_shuffle_success_message": "🔀 Shuffled — mystery is half the fun.",
+
+        "volume_message": "🔊 Volume set to **{volume}%** — perfect balance, like a fine cocktail.",
+        "volume_invalid_message": "🚫 Easy now. 1 to 100 only — we want hearts fluttering, not eardrums popping.",
+
+        "uploads_empty_message": "🎶 No uploads yet — bring me your favorite tracks, let’s build a vibe.",
+        "uploads_embed_title": "🎼 Uploaded Library",
+        "uploads_page_empty_message": "🎧 No uploads on this page — room to grow.",
+        "uploads_page_play_message": "🎵 {count} tracks pulled — let’s spin them up.",
+        "uploads_page_shuffle_message": "🔀 Uploads shuffled — mystery mix incoming.",
+        "uploads_full_shuffle_message": "🎶 All {count} uploads spinning in — full house tonight.",
+        "uploads_connect_message": "🎙️ Connected and standing by — you run the playlist, I run the room.",
+        "uploads_connect_error_message": "❌ Hop in a voice channel — then let me do my thing.",
+
+        "tag_usage_message": "🏷️ Tag your tracks: `!tag <numbers> <tags>` (e.g. `!tag 1 chill vibe`)",
+        "tag_valueerror_message": "⚠️ Some of those numbers didn’t vibe — check your list.",
+        "tag_missing_args_message": "🎶 I need both song numbers and those sweet tags.",
+        "tag_invalid_number_message": "🎼 Skipped song {num} — couldn’t locate it.",
+        "tag_success_message": "🏷️ Tagged {files} with `{tags}` — your vibe catalog grows.",
+        "tag_no_tagged_message": "🎶 No tags applied — another round?",
+
+        "playbytag_no_args_message": "🎧 Toss me a tag — I’ll find matching vibes.",
+        "playbytag_no_matches_message": "🎵 No matches for `{tags}` — want to tag some more gems?",
+        "playbytag_success_message": "🎶 Found {count} under `{tags}` — ready to roll.",
+
+        "listtags_empty_message": "🏷️ No tags yet — clean slate, full of possibilities.",
+        "listtags_title": "🎼 Your Song Tags",
+
+        "removetag_missing_args_message": "🎧 You gotta tell me which tags or songs to clear.",
+        "removetag_loading_message": "✨ Untangling tags... almost done...",
+        "removetag_success_message": "🏷️ Tags cleared from: {files}.",
+        "removetag_none_found_message": "🎧 Nothing found to clear — looking tidy already.",
+        "removetag_invalid_input_message": "⚠️ Some inputs didn’t land: {invalid}",
+        "removetag_tag_removed_message": "🏷️ Tag `{tag}` removed from: {files}.",
+        "removetag_tag_not_found_message": "🎵 No tracks carried `{tag}`.",
+
+        "stop_active_message": "🎧 Playback paused, queue cleared — standing by.",
+        "stop_idle_message": "🎵 Already quiet — ready whenever you are.",
+        "deleteupload_no_args_message": "🎧 Drop song numbers to clear — ex: `!du 1 2 3`",
+        "deleteupload_success_message": "💫 Deleted {count} uploads: `{files}`",
+        "deleteupload_invalid_numbers_message": "⚠️ These didn’t register: `{invalid}`",
+        "clearqueue_message": "🎼 Queue cleared — next vibe incoming.",
+        "clearuploads_nothing_message": "🎧 Nothing to clear — you’re starting fresh.",
+        "clearuploads_confirm_message": "⚠️ You sure you want to wipe **all uploads**? This is permanent.",
+        "clearuploads_success_message": "🎼 Cleared {count} uploads — clean slate.",
+        "clearuploads_cancel_message": "🎧 No worries — your uploads are untouched.",
+        "clearuploads_unauthorized_cancel_message": "❌ Only the person who requested can cancel.",
+        "clearuploads_unauthorized_confirm_message": "❌ Only the original requestor may clear uploads.",
+
+        "upload_message": "🎶 New track received — added straight to the vibe locker. 🎧",
+        "tag_prompt": "🏷️ Toss me your tags, let’s get these categorized. (e.g. `lofi`, `hype`, `roadtrip`)",
+        "tag_success_reply": "🏷️ Tagged and filed — your playlist just leveled up. 🎼",
+        "tag_none_found": "🎧 No tags caught — try again to flavor it up.",
+        "help_intro": "🎵 Echosol Harmonies — smooth vibes, perfect balance, ready for any tune you bring.",
+        "help_footer": "🎧 The stage is yours — let the music flow."
+
+    }
+}
+def get_current_form():
+    now = datetime.utcnow()
+    month = now.month
+    day = now.day
+    if (month == 3 and day >= 21) or (month == 4):
+        return "vernalight"
+    elif (month == 6 and day >= 21) or (month == 7):
+        return "solshine"
+    elif (month == 9 and day >= 21) or (month == 10):
+        return "fallchord"
+    elif (month == 12 and day >= 21) or (month == 1):
+        return "frostveil"
+    else:
+        return "default"
+
+def get_seasonal_form_data():
+    form = get_current_form()
+    return SEASONAL_FORMS.get(form, SEASONAL_FORMS["default"])
 
 @bot.command(aliases=["playwithme", "connect", "verbinden", "kisses"])
 async def join(ctx):
-    """Joins a voice channel."""
+    """Joins a voice channel, seasonally flavored."""
+    form_data = get_seasonal_form_data()
+
     if ctx.author.voice:
         channel = ctx.author.voice.channel
         await channel.connect()
-        await ctx.send("💫 Echosol has joined you in song and spirit!")
+        await ctx.send(form_data.get("join_message", "💫 Echosol has joined you in song and spirit!"))
     else:
         await ctx.send("❌ Echosol cannot find your spirit... Join a voice channel first!")
 
 @bot.command(aliases=["goaway", "disconnect", "verlassen"])
 async def leave(ctx):
-    """Leaves the voice channel with gentle farewell."""
+    """Leaves the voice channel with seasonal sparkle."""
+    form_data = get_seasonal_form_data()
+
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
-        await ctx.send("🌅 Echosol has gently drifted from the voice channel, returning to the cosmos. 💫")
+        await ctx.send(form_data.get("leave_message", "🌅 Echosol has gently drifted from the voice channel, returning to the cosmos. 💫"))
     else:
         await ctx.send("🌙 I'm not shining in any voice channel right now.")
 
 @bot.command(aliases=["p", "gimme", "spielen"])
 async def play(ctx, url: str = None):
-    """Plays a song from YouTube or adds it to the queue with warmth 🌞"""
+    """Plays a song from YouTube or adds it to the queue with seasonal flavor."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
 
     if not url:
-        await ctx.send("☀️ Please share a YouTube link so we can light up the vibes!")
+        await ctx.send(form_data["no_url_message"])
         return
 
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
-            await ctx.send("🎧 Joined your voice channel, ready to share the light!")
+            await ctx.send(form_data["connected_message"])
         else:
-            await ctx.send("💭 Hop into a voice channel and summon me with sunshine!")
+            await ctx.send(form_data["uploads_connect_error_message"])
             return
 
     try:
@@ -289,10 +769,10 @@ async def play(ctx, url: str = None):
                             entry_info = entry
                         song_queue_by_guild[guild_id].append((entry_info['webpage_url'], entry_info['title']))
                         added += 1
-                await ctx.send(f"📀 Added **{added} radiant tunes** from the playlist to the journey!")
+                await ctx.send(form_data["playlist_add_message"].format(count=added))
             else:  # Single video
                 song_queue_by_guild[guild_id].append((info['webpage_url'], info['title']))
-                await ctx.send(f"🌻 **{info['title']}** has been added to the soundscape!")
+                await ctx.send(form_data["single_add_message"].format(title=info['title']))
 
     except Exception as e:
         await ctx.send(f"⚠️ A cloud blocked the song: `{e}`")
@@ -304,12 +784,13 @@ async def play(ctx, url: str = None):
 async def play_next(ctx):
     guild_id = ctx.guild.id
     vc = ctx.voice_client
+    form_data = get_seasonal_form_data()
 
     if vc and vc.is_playing():
         return
 
     if not song_queue_by_guild[guild_id]:
-        await ctx.send("🌈 The musical journey is paused, but the stage awaits. ✨ Use `!play` when you're ready to glow again!")
+        await ctx.send(form_data.get("queue_empty_message", "🌈 The stage awaits new tunes!"))
         return
 
     usage_counters[guild_id] += 1
@@ -362,99 +843,21 @@ async def play_next(ctx):
     vc.play(discord.FFmpegPCMAudio(song_url, **ffmpeg_options), after=after_play)
     vc.source = discord.PCMVolumeTransformer(vc.source, volume_levels_by_guild[guild_id])
 
-    from datetime import datetime
-
-    def get_current_form():
-        now = datetime.utcnow()
-        month = now.month
-        day = now.day
-        if (month == 3 and day >= 21) or (month == 4):
-            return "vernalight"
-        elif (month == 6 and day >= 21) or (month == 7):
-            return "solshine"
-        elif (month == 9 and day >= 21) or (month == 10):
-            return "fallchord"
-        elif (month == 12 and day >= 21) or (month == 1):
-            return "frostveil"
-        else:
-            return "default"
-
-    SEASONAL_FORMS = {
-        "vernalight": {
-            "name": "🌸 Vernalight Blossoms",
-            "color": 0xB3C7F9,
-            "bar_emojis": ['🌧️', '☔', '💧', '💮'],
-            "unfilled": '🌫️',
-            "start_desc": "The soft rain begins to fall — **{song}** is flowing through the mist.",
-            "finale_title": "🌸 Petals Fade",
-            "finale_desc": "The rain slows, and **{song}** dissolves into morning mist.",
-            "finale_bar": "🌧️"
-        },
-        "solshine": {
-            "name": "🌞 Solshine Radiance",
-            "color": 0xFFD966,
-            "bar_emojis": ['☀️', '🌻', '🌼', '✨'],
-            "unfilled": '🌞',
-            "start_desc": "**{song}** rises bright and warm into your day’s sky.",
-            "finale_title": "🌞 Sunset Glow",
-            "finale_desc": "**{song}** completes its warm embrace beneath golden skies.",
-            "finale_bar": "☀️"
-        },
-        "fallchord": {
-            "name": "🍂 Fallchord Resonance",
-            "color": 0xFF9933,
-            "bar_emojis": ['🍁', '🍂', '🦇', '🎃'],
-            "unfilled": '🌰',
-            "start_desc": "The autumn breeze carries **{song}** through falling leaves.",
-            "finale_title": "🍂 Autumn Whispers",
-            "finale_desc": "**{song}** drifts softly like falling leaves into stillness.",
-            "finale_bar": "🍁"
-        },
-        "frostveil": {
-            "name": "❄️ Frostveil Stillness",
-            "color": 0x99CCFF,
-            "bar_emojis": ['❄️', '💙', '🌨️', '🧊'],
-            "unfilled": '🥶',
-            "start_desc": "**{song}** echoes gently through crystal frost and silent snow.",
-            "finale_title": "❄️ Crystal Silence",
-            "finale_desc": "**{song}** fades like snowflakes melting into silence.",
-            "finale_bar": "❄️"
-        },
-        "default": {
-            "name": "🎵 Echosol Harmonies",
-            "color": 0xFFDB8A,
-            "bar_emojis": [
-                '<:echo2:1383471283076862037>',
-                '<:echo1:1383471280694497391>',
-                '<:echo4:1383471288500097065>',
-                '<:echo3:1383471285123813507>'
-            ],
-            "unfilled": '🎶',
-            "start_desc": "🎶 **{song}** is glowing through your speakers!",
-            "finale_title": "🎵 Finale Glow",
-            "finale_desc": "**{song}** concludes its gentle melody of light.",
-            "finale_bar": "✨"
-        }
-    }
-
-    current_form = get_current_form()
-    form_data = SEASONAL_FORMS.get(current_form, SEASONAL_FORMS["default"])
-
+    # Seasonal progress bar (fixed for custom emoji handling)
     def seasonal_progress_bar(current, total, segments=10, pulse_state=0):
-        filled = int((current / total) * segments)
+        try:
+            filled = int((current / total) * segments)
+        except ZeroDivisionError:
+            filled = 0
+
         emojis = form_data["bar_emojis"]
         pulse = emojis[pulse_state % len(emojis)]
         unfilled_icon = form_data.get("unfilled", "▫️")
 
-        bar = ""
-        for i in range(segments):
-            if i < filled:
-                bar += f"{emojis[0]}"
-            elif i == filled:
-                bar += f"{pulse}"
-            else:
-                bar += f"{unfilled_icon}"
-        return bar
+        return "".join([
+            emojis[0] if i < filled else pulse if i == filled else unfilled_icon
+            for i in range(segments)
+        ])
 
     progress_bar_func = seasonal_progress_bar
 
@@ -505,41 +908,50 @@ async def play_next(ctx):
 
 @bot.command(aliases=["mixitup", "mischen", "shuff"])
 async def shuffle(ctx):
-    """Shuffles the current music queue with joy 🌻"""
+    """Shuffles the current music queue with seasonal joy."""
+    form_data = get_seasonal_form_data()
     guild_id = ctx.guild.id
     queue = song_queue_by_guild.get(guild_id, [])
+
     if len(queue) > 1:
         random.shuffle(queue)
-        await ctx.send("🔀 The playlist has been spun like sunrays through stained glass. 🌞")
+        await ctx.send(form_data.get("shuffle_message", "🔀 The playlist has been shuffled!"))
     else:
-        await ctx.send("🌱 Not quite enough tunes to dance with. Add more and try again!")
+        await ctx.send(form_data.get("shuffle_too_short_message", "🌱 Not enough tunes to shuffle — add more!"))
 
 @bot.command(aliases=["hush"])
 async def pause(ctx):
-    """Pauses the current song with a gentle hush 🌙"""
+    """Pauses the current song with seasonal hush."""
+    form_data = get_seasonal_form_data()
+
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.pause()
-        await ctx.send("💤 A gentle pause... the music takes a breath beneath the stars.")
+        await ctx.send(form_data.get("pause_message", "💤 The music takes a gentle pause."))
 
 @bot.command(aliases=["youmayspeak"])
 async def resume(ctx):
-    """Resumes paused music with heart 💖"""
+    """Resumes paused music with seasonal flavor."""
+    form_data = get_seasonal_form_data()
+
     if ctx.voice_client and ctx.voice_client.is_paused():
         ctx.voice_client.resume()
-        await ctx.send("💓 The melody awakens — your rhythm pulses with light once more!")
+        await ctx.send(form_data.get("resume_message", "💓 The melody resumes — flowing once more!"))
 
 @bot.command(aliases=["nextplease", "next", "skippy"])
 async def skip(ctx):
-    """Skips the current song with a gleam 💫"""
+    """Skips the current song with seasonal flavor."""
+    form_data = get_seasonal_form_data()
+
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
         await play_next(ctx)
-        await ctx.send("⏭ Onward to the next harmony in your journey of sound 🌟")
+        await ctx.send(form_data.get("skip_message", "⏭ Skipping to the next song!"))
 
 @bot.command(aliases=["turnitup", "tooloud", "v"])
 async def volume(ctx, volume: int):
-    """Sets the bot's volume like turning up the sun ☀️"""
+    """Sets the bot's volume with seasonal warmth."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
 
     if 1 <= volume <= 100:
         volume_levels_by_guild[guild_id] = volume / 100.0
@@ -547,17 +959,18 @@ async def volume(ctx, volume: int):
         if ctx.voice_client and ctx.voice_client.source:
             ctx.voice_client.source.volume = volume_levels_by_guild[guild_id]
 
-        await ctx.send(f"🔊 Volume tuned to **{volume}%** — let your light shine brighter!")
+        await ctx.send(form_data.get("volume_message", f"🔊 Volume set to **{volume}%**").format(volume=volume))
     else:
-        await ctx.send("🚫 Volume must be between **1 and 100** — just like sunshine, too much can burn! 🌞")
+        await ctx.send(form_data.get("volume_invalid_message", "🚫 Volume must be between 1 and 100."))
 
 @bot.command(aliases=["whatsnext", "q"])
 async def queue(ctx):
     """Displays the current queue with pagination and a shuffle button."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
 
     if not song_queue_by_guild[guild_id]:
-        await ctx.send("🌥️ The queue is empty... add a little sunshine with `!play`, `!listsongs`, or more!")
+        await ctx.send(form_data.get("queue_empty_message", "🌥️ The queue is empty... add more songs!"))
         return
 
     class QueuePages(View):
@@ -579,9 +992,9 @@ async def queue(ctx):
             ])
 
             embed = discord.Embed(
-                title=f"🌞 Echosol Queue — Page {self.page + 1}",
-                description=queue_display or "🌤️ This page is feeling a little empty...",
-                color=discord.Color.from_str("#f9c6eb")
+                title=form_data.get("queue_embed_title", f"🎶 Echosol Queue — Page {self.page + 1}"),
+                description=queue_display or form_data.get("queue_page_empty_message", "🌤️ This page is feeling a little empty..."),
+                color=form_data.get("color", 0xFFE680)
             )
             embed.set_footer(text="Use the buttons below to navigate or shuffle ✨")
 
@@ -609,7 +1022,9 @@ async def queue(ctx):
             queue = song_queue_by_guild[self.guild_id]
             random.shuffle(queue)
             self.page = 0
-            await interaction.response.send_message("🔀 The queue was kissed by the wind and reshuffled!", ephemeral=True)
+            await interaction.response.send_message(
+                form_data.get("queue_shuffle_success_message", "🔀 Queue reshuffled!"), ephemeral=True
+            )
             await self.send_page(interaction)
 
     view = QueuePages(guild_id)
@@ -619,9 +1034,10 @@ async def queue(ctx):
 async def listsongs(ctx):
     """Lists available uploaded songs with optional tag filter, pagination, and actions."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
 
     if not uploaded_files_by_guild[guild_id]:
-        await ctx.send("🌥️ No sunshine yet! Upload a song to brighten the playlist.")
+        await ctx.send(form_data.get("uploads_empty_message", "🌥️ No uploads yet — upload a song to begin."))
         return
 
     per_page = 10
@@ -649,14 +1065,14 @@ async def listsongs(ctx):
             song_list += f"{start + i + 1}. {song}\n"
 
         total_pages = max(1, math.ceil(len(state.filtered_files) / per_page))
-        title = "🌼 Radiant Uploads"
+        title = form_data.get("uploads_embed_title", "📂 Uploaded Songs")
         if state.selected_tag:
             title += f" – Tag: {state.selected_tag}"
 
         embed = discord.Embed(
             title=f"{title} (Page {state.current_page + 1}/{total_pages})",
-            description=song_list or "☁️ This page is a little quiet...",
-            color=discord.Color.from_str("#f9c6eb")
+            description=song_list or form_data.get("uploads_page_empty_message", "☁️ No songs here yet."),
+            color=form_data.get("color", 0xFFE680)
         )
         embed.set_footer(text="✨ Let your playlist bloom. Use !playnumber or the buttons below.")
         return embed
@@ -707,8 +1123,9 @@ async def listsongs(ctx):
                 song_queue_by_guild[guild_id].append(song_path)
                 added.append(filename)
 
+            message_template = form_data.get("uploads_page_play_message", "🎵 Queued {count} songs from this page.")
             await interaction.response.send_message(
-                f"💖 You queued {len(added)} joyful tunes from this page!",
+                message_template.format(count=len(added)),
                 ephemeral=True
             )
 
@@ -729,8 +1146,9 @@ async def listsongs(ctx):
                 song_queue_by_guild[guild_id].append(song_path)
                 added.append(filename)
 
+            message_template = form_data.get("uploads_page_shuffle_message", "🔀 Shuffled {count} songs from this page.")
             await interaction.response.send_message(
-                f"🌟 Shuffled and queued {len(added)} sparkling songs!",
+                message_template.format(count=len(added)),
                 ephemeral=True
             )
 
@@ -767,31 +1185,32 @@ async def listsongs(ctx):
 async def playalluploads(ctx):
     """Adds all uploaded songs to the queue in shuffled order."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
     song_queue = song_queue_by_guild.setdefault(guild_id, [])
 
     if not uploaded_files:
-        await ctx.send("🌥️ No musical sunshine found! Upload a song to brighten the day.")
+        await ctx.send(form_data.get("uploads_empty_message", "🌥️ No songs uploaded yet."))
         return
 
-    # Shuffle a copy of the uploaded file list
     shuffled_songs = uploaded_files[:]
     random.shuffle(shuffled_songs)
 
-    # Queue them
     for filename in shuffled_songs:
         song_path = os.path.join(MUSIC_FOLDER, filename)
         song_queue.append(song_path)
 
-    await ctx.send(f"🌈 A radiant mix of **{len(shuffled_songs)}** uploaded songs has been queued! Let the light flow 🎶")
+    message_template = form_data.get("uploads_full_shuffle_message", "🌈 {count} uploaded songs have been shuffled into your queue.")
+    await ctx.send(message_template.format(count=len(shuffled_songs)))
 
-    # Connect and start playing
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
-            await ctx.send("🌟 Echosol has joined your voice channel to begin the musical journey!")
+            connect_message = form_data.get("uploads_connect_message", "🎧 Connected and ready to play!")
+            await ctx.send(connect_message)
         else:
-            await ctx.send("❌ You need to be in a voice channel to share the light!")
+            error_message = form_data.get("uploads_connect_error_message", "❌ You need to be in a voice channel to start playback.")
+            await ctx.send(error_message)
             return
 
     if not ctx.voice_client.is_playing():
@@ -801,10 +1220,11 @@ async def playalluploads(ctx):
 async def playbypage(ctx, *pages):
     """Plays one or more pages of uploaded songs."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
 
     if not uploaded_files:
-        await ctx.send("🌥️ No sunshine yet! Upload a song to brighten the playlist.")
+        await ctx.send(form_data.get("uploads_empty_message", "🌥️ No uploads found yet."))
         return
 
     per_page = 10
@@ -812,7 +1232,7 @@ async def playbypage(ctx, *pages):
     added = []
 
     if not pages:
-        await ctx.send("🌻 Please share one or more page numbers to bring the sunshine! (e.g. `!page 1 2 3`)")
+        await ctx.send("🌻 Please provide one or more page numbers to load songs. (e.g. `!page 1 2 3`)")
         return
 
     for page_str in pages:
@@ -832,16 +1252,20 @@ async def playbypage(ctx, *pages):
             await ctx.send(f"🌥️ `{page_str}` isn’t a valid number. Let’s float past it.")
 
     if not added:
-        await ctx.send("❌ No songs danced into the queue. Try again with valid pages.")
+        await ctx.send("❌ No songs added. Try again with valid pages.")
         return
 
-    await ctx.send(f"🎶✨ Added **{len(added)}** radiant tracks from page(s) {', '.join(pages)} to your musical journey!")
+    message_template = form_data.get("uploads_page_play_message", "🎶 Added {count} songs from selected pages.")
+    await ctx.send(message_template.format(count=len(added)))
 
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
+            connect_message = form_data.get("uploads_connect_message", "🎧 Connected and ready to play!")
+            await ctx.send(connect_message)
         else:
-            await ctx.send("🌙 You need to be in a voice channel to let the melodies flow.")
+            error_message = form_data.get("uploads_connect_error_message", "❌ You need to join a voice channel first.")
+            await ctx.send(error_message)
             return
 
     if not ctx.voice_client.is_playing():
@@ -851,38 +1275,44 @@ async def playbypage(ctx, *pages):
 async def playbynumber(ctx, *numbers):
     """Plays one or multiple uploaded songs using their numbers (per-server)."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     uploaded_files = uploaded_files_by_guild.setdefault(guild_id, [])
     song_queue = song_queue_by_guild.setdefault(guild_id, [])
 
     added_songs = []
 
     if not numbers:
-        await ctx.send("❌ Please provide one or more song numbers. Example: `!playbynumber 1 2 3`")
+        await ctx.send(form_data.get("uploads_empty_message", "❌ Please provide one or more song numbers."))
         return
 
     for num in numbers:
         try:
-            num = int(num.strip(','))  # Clean and convert to int
+            num = int(num.strip(','))
             if 1 <= num <= len(uploaded_files):
                 song_path = os.path.join(MUSIC_FOLDER, uploaded_files[num - 1])
                 song_queue.append(song_path)
                 added_songs.append(uploaded_files[num - 1])
             else:
-                await ctx.send(f"⚠️ Song number `{num}` is out of bounds. Use `!listsongs` to see available tracks.")
+                await ctx.send(f"⚠️ Song number `{num}` is out of range. Use `!listsongs` to see available tracks.")
         except ValueError:
-            await ctx.send(f"❌ `{num}` isn't a valid number. Use spaces or commas to separate multiple.")
+            await ctx.send(f"❌ `{num}` isn’t a valid number. Use spaces or commas to separate multiple.")
 
     if not added_songs:
-        await ctx.send("🌧️ No songs were added to the queue... let's try again with some sunshine.")
+        await ctx.send("🌧️ No songs were added — try again with valid numbers.")
         return
 
-    await ctx.send(f"🌟 Added to the queue: **{', '.join(added_songs)}** — let the light flow!")
+    # Seasonal success message
+    success_message = form_data.get("uploads_page_play_message", "🎶 Added {count} songs.")
+    await ctx.send(success_message.format(count=len(added_songs)))
 
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
+            connect_message = form_data.get("uploads_connect_message", "🎧 Connected and ready to play!")
+            await ctx.send(connect_message)
         else:
-            await ctx.send("❌ You need to be in a voice channel to hear the glow of music!")
+            error_message = form_data.get("uploads_connect_error_message", "❌ You need to join a voice channel first.")
+            await ctx.send(error_message)
             return
 
     if not ctx.voice_client.is_playing():
@@ -892,22 +1322,35 @@ async def playbynumber(ctx, *numbers):
 async def tag(ctx, *args):
     """Tags one or more uploaded songs. Usage: !tag <number(s)> <tags...> (per-server)"""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     uploaded_files = uploaded_files_by_guild.setdefault(guild_id, [])
     file_tags = file_tags_by_guild.setdefault(guild_id, {})
 
     if len(args) < 2:
-        await ctx.send("🌻 To blossom your tunes with tags, use: `!tag <song number(s)> <tags>`\nExample: `!tag 1 2 chill vibe`")
+        usage_message = form_data.get(
+            "tag_usage_message",
+            "🏷️ Use `!tag <numbers> <tags>` to apply tags. Example: `!tag 1 2 chill vibe`"
+        )
+        await ctx.send(usage_message)
         return
 
     try:
         numbers = [int(arg) for arg in args if arg.isdigit()]
         tags = [arg.lower() for arg in args if not arg.isdigit()]
     except ValueError:
-        await ctx.send("⚠️ Hmm, some of those song numbers didn’t look quite right. Please only use numbers for the songs.")
+        valueerror_message = form_data.get(
+            "tag_valueerror_message",
+            "⚠️ Some song numbers didn’t parse correctly — please use numbers only."
+        )
+        await ctx.send(valueerror_message)
         return
 
     if not numbers or not tags:
-        await ctx.send("🌸 Please give me both the song numbers *and* the beautiful tags you'd like to add.")
+        missing_args_message = form_data.get(
+            "tag_missing_args_message",
+            "🏷️ Please provide both song numbers and tags."
+        )
+        await ctx.send(missing_args_message)
         return
 
     tagged = []
@@ -920,27 +1363,51 @@ async def tag(ctx, *args):
                     file_tags[filename].append(tag)
             tagged.append(filename)
         else:
-            await ctx.send(f"🌥️ Skipped song number {num} – it's not in our garden of uploads!")
+            invalid_num_message = form_data.get(
+                "tag_invalid_number_message",
+                f"⚠️ Skipped song number {num} — not found."
+            )
+            await ctx.send(invalid_num_message.format(num=num))
 
     if tagged:
-        await ctx.send(f"🏷️✨ Songs kissed by sunshine: {', '.join(tagged)}\nWith glowing tags: `{', '.join(tags)}`")
-        save_upload_data()  # ✅ Save only if something was tagged
+        success_message = form_data.get(
+            "tag_success_message",
+            "🏷️ Tagged: {files} with `{tags}`"
+        )
+        await ctx.send(success_message.format(
+            files=", ".join(tagged),
+            tags=", ".join(tags)
+        ))
+        save_upload_data()
     else:
-        await ctx.send("☁️ No songs were tagged this time. Try again with different numbers or tags!")
+        no_tagged_message = form_data.get(
+            "tag_no_tagged_message",
+            "☁️ No songs were tagged — please try again."
+        )
+        await ctx.send(no_tagged_message)
 
 @bot.command(aliases=["tagplay", "greenflag", "pt"])
 async def playbytag(ctx, *search_tags):
     """Plays all uploaded songs that match one or more tags. Usage: !playbytag chill vibe (per-server)"""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     uploaded_files = uploaded_files_by_guild.setdefault(guild_id, [])
     file_tags = file_tags_by_guild.setdefault(guild_id, {})
 
     if not uploaded_files:
-        await ctx.send("🌥️ No uploads yet — add some sunshine first with an upload.")
+        empty_message = form_data.get(
+            "uploads_empty_message",
+            "🌥️ No uploads yet — add some sunshine first with an upload."
+        )
+        await ctx.send(empty_message)
         return
 
     if not search_tags:
-        await ctx.send("🌿 Please share at least one tag to guide the vibe. Example: `!playbytag chill`")
+        no_args_message = form_data.get(
+            "playbytag_no_args_message",
+            "🌿 Please share at least one tag. Example: `!playbytag chill`"
+        )
+        await ctx.send(no_args_message)
         return
 
     tags_lower = [t.lower() for t in search_tags]
@@ -950,20 +1417,32 @@ async def playbytag(ctx, *search_tags):
     ]
 
     if not matched:
-        await ctx.send(f"☁️ No songs found glowing with tag(s): `{', '.join(tags_lower)}`. Try another gentle whisper?")
+        no_matches_message = form_data.get(
+            "playbytag_no_matches_message",
+            "☁️ No songs found glowing with tag(s): `{tags}`."
+        )
+        await ctx.send(no_matches_message.format(tags=", ".join(tags_lower)))
         return
 
     for filename in matched:
         song_path = os.path.join(MUSIC_FOLDER, filename)
         song_queue_by_guild.setdefault(guild_id, []).append(song_path)
 
-    await ctx.send(f"🌈 Added **{len(matched)}** radiant tracks to the queue, inspired by tag(s): `{', '.join(tags_lower)}` ✨")
+    success_message = form_data.get(
+        "playbytag_success_message",
+        "🌈 Added {count} tracks matching `{tags}` to the queue."
+    )
+    await ctx.send(success_message.format(count=len(matched), tags=", ".join(tags_lower)))
 
     if not ctx.voice_client:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
         else:
-            await ctx.send("❌ You need to be in a voice channel to let the music shine through.")
+            connect_error_message = form_data.get(
+                "uploads_connect_error_message",
+                "❌ You need to be in a voice channel to start the music."
+            )
+            await ctx.send(connect_error_message)
             return
 
     if not ctx.voice_client.is_playing():
@@ -973,6 +1452,7 @@ async def playbytag(ctx, *search_tags):
 async def listtags(ctx):
     """Shows all tags currently in use for uploaded songs (per-server)."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     file_tags = file_tags_by_guild.setdefault(guild_id, {})
 
     # Gather all unique tags
@@ -981,16 +1461,18 @@ async def listtags(ctx):
         unique_tags.update(tags)
 
     if not unique_tags:
-        await ctx.send("🌫️ The air is still—no tags are dancing right now.")
+        empty_message = form_data.get(
+            "listtags_empty_message",
+            "🌫️ No tags exist yet — nothing is dancing in the air."
+        )
+        await ctx.send(empty_message)
         return
 
     sorted_tags = sorted(unique_tags)
     tag_text = ", ".join(sorted_tags)
 
-    # Discord embed descriptions cap at 4096 characters
     max_length = 4000  # Leave room for formatting and footer
     if len(tag_text) > max_length:
-        # Trim tag text if too long
         trimmed = tag_text[:max_length]
         last_comma = trimmed.rfind(",")
         trimmed = trimmed[:last_comma] + "..."
@@ -998,8 +1480,13 @@ async def listtags(ctx):
     else:
         description = f"`{tag_text}`"
 
+    embed_title = form_data.get(
+        "listtags_title",
+        "🌼 Tags Blooming in the Archive"
+    )
+
     embed = discord.Embed(
-        title="🌼 Tags Blooming in the Archive",
+        title=embed_title,
         description=description,
         color=discord.Color.from_str("#ffb6c1")
     )
@@ -1011,12 +1498,13 @@ async def listtags(ctx):
 async def removetag(ctx, *args):
     """Removes all tags from specified songs, or removes a specific tag from all songs."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     file_tags = file_tags_by_guild.setdefault(guild_id, {})
     uploaded_files = uploaded_files_by_guild.setdefault(guild_id, [])
 
     if not args:
         embed = discord.Embed(
-            title="🌸 Oops! Missing Details",
+            title=form_data.get("removetag_missing_args_message", "🌸 Oops! Missing Details"),
             description="Please use:\n\n"
                         "➔ `!removetag <song number(s)>` to clear all tags from songs.\n"
                         "➔ `!removetag <tag>` to remove a tag from all songs.",
@@ -1025,10 +1513,11 @@ async def removetag(ctx, *args):
         await ctx.send(embed=embed)
         return
 
-    loading_message = await ctx.send("✨ Polishing your melodies... One moment, please... 🎵")
+    loading_message_text = form_data.get("removetag_loading_message", "✨ Working... please wait... 🎵")
+    loading_message = await ctx.send(loading_message_text)
     await asyncio.sleep(1)
 
-    did_change = False  # 🔄 Track if we made any updates
+    did_change = False
 
     if args[0].isdigit():
         numbers = []
@@ -1046,27 +1535,29 @@ async def removetag(ctx, *args):
                 if filename in file_tags and file_tags[filename]:
                     file_tags[filename] = []
                     cleared.append(filename)
-                    did_change = True  # ✅ Change detected
+                    did_change = True
 
         if cleared:
+            cleared_message = form_data.get("removetag_success_message", "Tags cleared from: {files}.")
             embed = discord.Embed(
-                title="💖 Tags Cleared!",
-                description="These songs are now floating freely:\n\n" +
-                            "\n".join(f"• {file}" for file in cleared),
+                title="✅ Tags Cleared",
+                description=cleared_message.format(files=", ".join(cleared)),
                 color=discord.Color.from_str("#fff0b3")
             )
             embed.set_footer(text="✨ Fresh, tag-free melodies await.")
         else:
+            no_tags_message = form_data.get("removetag_none_found_message", "No tags found to clear.")
             embed = discord.Embed(
                 title="🌥️ No Tags Found",
-                description="Those songs were already as free as the breeze! 🌬️",
+                description=no_tags_message,
                 color=discord.Color.from_str("#add8e6")
             )
 
         if invalid:
+            invalid_message = form_data.get("removetag_invalid_input_message", "⚠️ Invalid: {invalid}")
             embed.add_field(
                 name="⚠️ Ignored Inputs",
-                value=", ".join(invalid),
+                value=invalid_message.format(invalid=", ".join(invalid)),
                 inline=False
             )
 
@@ -1080,49 +1571,52 @@ async def removetag(ctx, *args):
             if tag_to_remove in tags:
                 tags.remove(tag_to_remove)
                 removed_from.append(filename)
-                did_change = True  # ✅ Change detected
+                did_change = True
 
         if removed_from:
+            tag_removed_message = form_data.get("removetag_tag_removed_message", "Removed `{tag}` from: {files}.")
             embed = discord.Embed(
-                title="🏷️ Tag Gently Lifted",
-                description=f"Removed `{tag_to_remove}` from these songs:\n\n" +
-                            "\n".join(f"• {file}" for file in removed_from),
+                title="🏷️ Tag Removed",
+                description=tag_removed_message.format(tag=tag_to_remove, files=", ".join(removed_from)),
                 color=discord.Color.from_str("#ffd1dc")
             )
-            embed.set_footer(text="🌼 Like flowers shedding petals to the wind...")
+            embed.set_footer(text="✨ The songs now float free.")
         else:
+            not_found_message = form_data.get("removetag_tag_not_found_message", f"No songs carried the tag `{tag_to_remove}`.")
             embed = discord.Embed(
                 title="🌫️ No Songs Found",
-                description=f"No songs were carrying the tag `{tag_to_remove}` 🌙",
+                description=not_found_message,
                 color=discord.Color.from_str("#d3d3f3")
             )
 
         await loading_message.edit(content=None, embed=embed)
 
     if did_change:
-        save_upload_data()  # ✅ Save only if something changed
+        save_upload_data()
 
 @bot.command(aliases=["shutup", "nomore", "stoppen"])
 async def stop(ctx):
     """Stops playback and clears the queue."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     song_queue_by_guild[guild_id] = []
 
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.stop()
-        await ctx.send("🌤️ Echosol takes a gentle breath... The melody has hushed, and your queue has floated away on a breeze. 🍃💛")
+        await ctx.send(form_data.get("stop_active_message", "🌤️ Playback has stopped — the melody rests."))
     else:
-        await ctx.send("🕊️ The air is quiet already, but your queue has been lovingly cleared. 💫")
+        await ctx.send(form_data.get("stop_idle_message", "🕊️ Already silent, but your queue has been cleared."))
 
 @bot.command(aliases=["delete", "removeupload", "du", "byebish"])
 async def deleteupload(ctx, *numbers):
     """Deletes one or multiple uploaded songs by their numbers (from !listsongs)."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
     file_tags = file_tags_by_guild.get(guild_id, {})
 
     if not numbers:
-        await ctx.send("🌱 Please share the number(s) of the uploaded song(s) to release. Example: `!du 1 2 3`")
+        await ctx.send(form_data.get("deleteupload_no_args_message", "🌱 Please share which songs to release."))
         return
 
     deleted = []
@@ -1147,45 +1641,48 @@ async def deleteupload(ctx, *numbers):
         except ValueError:
             invalid.append(num_str)
 
-    # Remove deleted entries from memory and tags
     for filename in deleted:
         if filename in uploaded_files:
             uploaded_files.remove(filename)
         if filename in file_tags:
             del file_tags[filename]
 
-    # Update persistent storage
     uploaded_files_by_guild[guild_id] = uploaded_files
     file_tags_by_guild[guild_id] = file_tags
     save_upload_data()
 
     if deleted:
         await ctx.send(
-            f"💫 Released **{len(deleted)}** file(s) into the wind:\n"
-            f"✨ `{', '.join(deleted)}`"
+            form_data.get("deleteupload_success_message", "💫 Deleted files: {files}").format(
+                count=len(deleted),
+                files=", ".join(deleted)
+            )
         )
     if invalid:
         await ctx.send(
-            f"⚠️ These didn’t shimmer quite right and were skipped: `{', '.join(invalid)}`\n"
-            "Use `!listsongs` to see the right numbers 🌈"
+            form_data.get("deleteupload_invalid_numbers_message", "⚠️ Skipped invalid inputs: {invalid}").format(
+                invalid=", ".join(invalid)
+            )
         )
 
 @bot.command(aliases=["spankies", "cq"])
 async def clearqueue(ctx):
     """Clears the music queue for this server only."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     song_queue_by_guild[guild_id] = []
 
-    await ctx.send("🌈 The queue has been cleared with care — a fresh breeze of musical sunshine awaits. 💛")
+    await ctx.send(form_data.get("clearqueue_message", "🌈 The queue has been cleared — fresh vibes await."))
 
 @bot.command(aliases=["exterminate", "cu"])
 async def clearuploads(ctx):
     """Deletes all uploaded files for this server to free space, with confirmation."""
     guild_id = ctx.guild.id
+    form_data = get_seasonal_form_data()
     uploaded_files = uploaded_files_by_guild.get(guild_id, [])
 
     if not uploaded_files:
-        await ctx.send("🌥️ There's nothing here — your musical skies are already clear.")
+        await ctx.send(form_data.get("clearuploads_nothing_message", "🌥️ Nothing to clear — skies are already clear."))
         return
 
     class ConfirmClearView(discord.ui.View):
@@ -1195,7 +1692,10 @@ async def clearuploads(ctx):
         @discord.ui.button(label="✅ Yes, clear all", style=discord.ButtonStyle.danger)
         async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
             if interaction.user != ctx.author:
-                await interaction.response.send_message("Only the melody master who called this may clear the skies!", ephemeral=True)
+                await interaction.response.send_message(
+                    form_data.get("clearuploads_unauthorized_confirm_message", "❌ Only the summoner may clear the uploads."),
+                    ephemeral=True
+                )
                 return
 
             file_count = 0
@@ -1211,23 +1711,31 @@ async def clearuploads(ctx):
             uploaded_files_by_guild[guild_id] = []
             file_tags_by_guild[guild_id] = {}
 
-            save_upload_data()  # ✅ persist the clear!
+            save_upload_data()
 
-            await interaction.response.edit_message(content=(
-                f"🌤️ Echosol has gently released **{file_count}** uploaded songs into the wind.\n"
-                f"The sky is clear for fresh melodies to shine. 💫"
-            ), view=None)
+            await interaction.response.edit_message(
+                content=form_data.get(
+                    "clearuploads_success_message",
+                    f"💫 Released {file_count} files."
+                ).format(count=file_count),
+                view=None
+            )
 
-        @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary)
+        @discord.ui.button(label="❌ Cancel", style=discord.ui.ButtonStyle.secondary)
         async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
             if interaction.user == ctx.author:
-                await interaction.response.edit_message(content="🌈 The skies remain untouched. No files were harmed. 💛", view=None)
+                await interaction.response.edit_message(
+                    content=form_data.get("clearuploads_cancel_message", "❄️ Clear cancelled."),
+                    view=None
+                )
             else:
-                await interaction.response.send_message("Only the original summoner can cancel this. 🌟", ephemeral=True)
+                await interaction.response.send_message(
+                    form_data.get("clearuploads_unauthorized_cancel_message", "❌ Only the original caller can cancel."),
+                    ephemeral=True
+                )
 
     await ctx.send(
-        "⚠️ Are you sure you want to clear **all uploaded songs** for this server?\n"
-        "This action cannot be undone.",
+        form_data.get("clearuploads_confirm_message", "⚠️ Are you sure you want to clear all uploads? This cannot be undone."),
         view=ConfirmClearView()
     )
 
