@@ -60,6 +60,20 @@ if cookie_data:
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)  # Disables default help
 
+async def connect_to_voice(ctx):
+    if not ctx.voice_client:
+        if ctx.author.voice:
+            try:
+                await ctx.author.voice.channel.connect(timeout=10)
+                return True
+            except asyncio.TimeoutError:
+                await ctx.send("⚠️ Couldn't connect to the voice channel in time.")
+            except discord.ClientException:
+                await ctx.send("❌ Already connected or unable to connect.")
+        else:
+            await ctx.send("❌ Join a voice channel to summon the tunes!")
+    return False
+
 @bot.command(aliases=["lost", "helfen"])
 async def help(ctx):
     """Displays all main commands with dropdown selection, now seasonally flavored."""
@@ -771,13 +785,11 @@ async def play(ctx, url: str = None):
         await ctx.send(form_data["no_url_message"])
         return
 
-    if not ctx.voice_client:
-        if ctx.author.voice:
-            await ctx.author.voice.channel.connect()
-            await ctx.send(form_data["connected_message"])
-        else:
-            await ctx.send(form_data["uploads_connect_error_message"])
-            return
+    connected = await connect_to_voice(ctx)
+    if not connected:
+        return
+    else:
+        await ctx.send(form_data["connected_message"])
 
     try:
         with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
@@ -1220,18 +1232,16 @@ async def playalluploads(ctx):
         song_path = os.path.join(MUSIC_FOLDER, filename)
         song_queue.append(song_path)
 
-    message_template = form_data.get("uploads_full_shuffle_message", "🌈 {count} uploaded songs have been shuffled into your queue.")
+    message_template = form_data.get(
+        "uploads_full_shuffle_message",
+        "🌈 {count} uploaded songs have been shuffled into your queue."
+    )
     await ctx.send(message_template.format(count=len(shuffled_songs)))
 
-    if not ctx.voice_client:
-        if ctx.author.voice:
-            await ctx.author.voice.channel.connect()
-            connect_message = form_data.get("uploads_connect_message", "🎧 Connected and ready to play!")
-            await ctx.send(connect_message)
-        else:
-            error_message = form_data.get("uploads_connect_error_message", "❌ You need to be in a voice channel to start playback.")
-            await ctx.send(error_message)
-            return
+    # 🔌 Safer connection logic
+    connected = await connect_to_voice(ctx)
+    if not connected:
+        return
 
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
@@ -1278,15 +1288,9 @@ async def playbypage(ctx, *pages):
     message_template = form_data.get("uploads_page_play_message", "🎶 Added {count} songs from selected pages.")
     await ctx.send(message_template.format(count=len(added)))
 
-    if not ctx.voice_client:
-        if ctx.author.voice:
-            await ctx.author.voice.channel.connect()
-            connect_message = form_data.get("uploads_connect_message", "🎧 Connected and ready to play!")
-            await ctx.send(connect_message)
-        else:
-            error_message = form_data.get("uploads_connect_error_message", "❌ You need to join a voice channel first.")
-            await ctx.send(error_message)
-            return
+    connected = await connect_to_voice(ctx)
+    if not connected:
+        return
 
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
@@ -1321,19 +1325,12 @@ async def playbynumber(ctx, *numbers):
         await ctx.send("🌧️ No songs were added — try again with valid numbers.")
         return
 
-    # Seasonal success message
     success_message = form_data.get("uploads_page_play_message", "🎶 Added {count} songs.")
     await ctx.send(success_message.format(count=len(added_songs)))
 
-    if not ctx.voice_client:
-        if ctx.author.voice:
-            await ctx.author.voice.channel.connect()
-            connect_message = form_data.get("uploads_connect_message", "🎧 Connected and ready to play!")
-            await ctx.send(connect_message)
-        else:
-            error_message = form_data.get("uploads_connect_error_message", "❌ You need to join a voice channel first.")
-            await ctx.send(error_message)
-            return
+    connected = await connect_to_voice(ctx)
+    if not connected:
+        return
 
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
@@ -1454,16 +1451,9 @@ async def playbytag(ctx, *search_tags):
     )
     await ctx.send(success_message.format(count=len(matched), tags=", ".join(tags_lower)))
 
-    if not ctx.voice_client:
-        if ctx.author.voice:
-            await ctx.author.voice.channel.connect()
-        else:
-            connect_error_message = form_data.get(
-                "uploads_connect_error_message",
-                "❌ You need to be in a voice channel to start the music."
-            )
-            await ctx.send(connect_error_message)
-            return
+    connected = await connect_to_voice(ctx)
+    if not connected:
+        return
 
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
@@ -1855,6 +1845,7 @@ async def listplaylists(ctx):
 async def playplaylist(ctx, playlist_name: str):
     guild_id = str(ctx.guild.id)
     ensure_guild_playlists(guild_id)
+    form_data = get_seasonal_form_data()
 
     if playlist_name not in playlists_by_guild[guild_id]:
         await ctx.send(f"🚫 Playlist `{playlist_name}` not found!")
@@ -1867,20 +1858,18 @@ async def playplaylist(ctx, playlist_name: str):
 
     for item in playlist:
         song_queue_by_guild[guild_id].append(item)
+
     await ctx.send(f"🎧 Queued `{len(playlist)}` songs from `{playlist_name}`!")
 
-    if not ctx.voice_client:
-        if ctx.author.voice:
-            await ctx.author.voice.channel.connect()
-        else:
-            await ctx.send("❌ Join a voice channel first!")
-            return
+    connected = await connect_to_voice(ctx)
+    if not connected:
+        return
 
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
-@bot.command()
-async def backupplaylists(ctx):
+@bot.command(aliases=["backupecho"])
+async def backupechosol(ctx):
     try:
         with open(PLAYLISTS_FILE, "rb") as f:
             await ctx.send("📂 Playlist backup:", file=discord.File(f, PLAYLISTS_FILE))
