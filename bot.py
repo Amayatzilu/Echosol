@@ -286,6 +286,71 @@ async def on_message(message):
 # 🌸 Seasonal Flavor Helper 🌞🍂❄️
 from datetime import datetime
 
+SEASONAL_AVATARS = {
+    "vernalight": "avatars/vernalight.png",
+    "solshine": "avatars/solshine.png",
+    "fallchord": "avatars/fallchord.png",
+    "frostveil": "avatars/frostveil.png",
+    "default": "avatars/default.png"
+}
+
+async def update_echo_avatar():
+    form = get_current_form()
+    avatar_path = SEASONAL_AVATARS.get(form, SEASONAL_AVATARS["default"])
+
+    if os.path.exists(avatar_path):
+        with open(avatar_path, "rb") as f:
+            avatar_data = f.read()
+
+        try:
+            await bot.user.edit(avatar=avatar_data)
+            print(f"[Avatar] Echosol avatar updated for form: {form}")
+            await announce_echo_form_shift(form)  # 🌟 <== Announce!
+        except discord.HTTPException as e:
+            print(f"[Avatar Error] Could not update Echosol's avatar: {e}")
+
+@tasks.loop(hours=6)
+async def seasonal_heartbeat():
+    await update_echo_avatar()
+
+@bot.event
+async def on_ready():
+    seasonal_heartbeat.start()
+
+async def announce_echo_form_shift(new_form: str):
+    # Customize form names and style here
+    form_names = {
+        "vernalight": "🌱 Vernalight Form",
+        "solshine": "☀️ Solshine Form",
+        "fallchord": "🍂 Fallchord Form",
+        "frostveil": "❄️ Frostveil Form",
+        "default": "🎵 Resonant Echo"
+    }
+
+    messages = {
+        "vernalight": "A shimmer of spring breathes through the melody...",
+        "solshine": "The sun rises in song — Echo blazes bright!",
+        "fallchord": "Golden leaves tumble in harmony. The tone turns mellow...",
+        "frostveil": "Ice threads the harmony with quiet resonance...",
+        "default": "Echo returns to his resonant stillness."
+    }
+
+    embed = discord.Embed(
+        title=form_names.get(new_form, "🎶 Echo's Shift"),
+        description=messages.get(new_form, "A new tone fills the air..."),
+        color=discord.Color.from_str("#f9c6eb")
+    )
+    embed.set_footer(text="Echosol attunes to the season.")
+
+    # Choose a public channel for announcements (or per-guild if needed)
+    for guild in bot.guilds:
+        channel = guild.system_channel or discord.utils.get(guild.text_channels, name="general")
+        if channel:
+            try:
+                await channel.send(embed=embed)
+            except discord.Forbidden:
+                print(f"[Warning] Can't send seasonal form shift message in {guild.name}")
+
 SEASONAL_FORMS = {
     "vernalight": {
         "name": "🌸 Vernalight Blossoms",
