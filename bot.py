@@ -294,8 +294,17 @@ SEASONAL_AVATARS = {
     "default": "avatars/default.png"
 }
 
+# Tracker for Echo’s current seasonal form
+previous_echo_form = None
+
 async def update_echo_avatar():
+    global previous_echo_form
+
     form = get_current_form()
+    if form == previous_echo_form:
+        print(f"[Avatar] Echo already in form '{form}', skipping update.")
+        return  # 🌿 No change = no transformation scene
+
     avatar_path = SEASONAL_AVATARS.get(form, SEASONAL_AVATARS["default"])
 
     if os.path.exists(avatar_path):
@@ -305,7 +314,8 @@ async def update_echo_avatar():
         try:
             await bot.user.edit(avatar=avatar_data)
             print(f"[Avatar] Echosol avatar updated for form: {form}")
-            await announce_echo_form_shift(form)  # 🌟 <== Announce!
+            await announce_echo_form_shift(form)
+            previous_echo_form = form  # 💾 Save the new form
         except discord.HTTPException as e:
             print(f"[Avatar Error] Could not update Echosol's avatar: {e}")
 
@@ -315,6 +325,8 @@ async def seasonal_heartbeat():
 
 @bot.event
 async def on_ready():
+    global previous_echo_form
+    previous_echo_form = None
     seasonal_heartbeat.start()
 
 async def announce_echo_form_shift(new_form: str):
